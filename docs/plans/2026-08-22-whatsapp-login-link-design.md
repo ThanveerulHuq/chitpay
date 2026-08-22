@@ -8,8 +8,8 @@ Replace the primary WhatsApp OTP login experience with a one-tap access link whi
 
 1. The user enters their Indian mobile number and requests an access link.
 2. The backend finds or creates the phone-based Firebase user and asks Firebase Authentication to generate a native email sign-in action link for the user's existing synthetic email address.
-3. The Firebase link is base64url-encoded for safe transport as a WhatsApp dynamic URL suffix. Kwic sends the localized `login_link_en` or `login_link_ta` template with the named `name` and `firebase_sign_in_link` variables.
-4. The button opens `https://chitapp.app/login/link/{{firebase_sign_in_link}}`.
+3. The Firebase link is base64url-encoded for safe transport as a WhatsApp dynamic URL suffix. Kwic sends the localized `login_access_en` or `login_access_ta` template with the named `name` and `id` variables.
+4. The button opens `https://chitpay.web.app/login/link/{{id}}`.
 5. The app decodes the Firebase action link and completes it with `signInWithEmailLink`. The synthetic email saved on the requesting device is used to prevent session injection. If the link opens on another device, the user must re-enter the associated phone number.
 6. The client refreshes role claims, replaces the credential-bearing history entry, and redirects to the user's groups.
 
@@ -27,13 +27,13 @@ Password login remains available from the login screen. Existing OTP callables r
 
 ## Templates
 
-English (`login_link_en`):
+English (`login_access_en`):
 
 > Hi {{name}}, here's your access link for Chitpay.
 >
 > Tap the button below to see your group.
 
-Tamil (`login_link_ta`):
+Tamil (`login_access_ta`):
 
 > அன்புள்ள {{name}},
 >
@@ -41,7 +41,7 @@ Tamil (`login_link_ta`):
 >
 > உங்கள் குழுவைப் பார்க்க கீழே உள்ள பொத்தானைத் தட்டவும்.
 
-Both templates use a dynamic URL button with base URL `https://chitapp.app/login/link/{{firebase_sign_in_link}}`.
+Both templates use a dynamic URL button with base URL `https://chitpay.web.app/login/link/{{id}}`.
 
 ## Error handling
 
