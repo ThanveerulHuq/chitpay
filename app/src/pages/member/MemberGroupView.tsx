@@ -4,12 +4,17 @@ import {
   fetchBoard,
   fetchCycle,
   fetchGroup,
+  fetchGroupPaymentRecords,
   fetchMyMemberships,
+  filterPaymentsByRange,
 } from '@/lib/api'
+import type { PaymentRecord } from '@/lib/api'
 import { auth } from '@/lib/firebase'
 import { formatMinor } from '@shared'
 import type { BoardEntry, CycleDoc, GroupDoc } from '@shared'
 import { Chip, Page, PageHeader, Skeleton } from '@/components/ui'
+import DateRangeFields from '@/components/DateRangeFields'
+import PaymentHistoryList from '@/components/PaymentHistoryList'
 import { useT } from '@/i18n'
 import { PaymentMethodIcon } from '@/pages/admin/GroupDashboardPage'
 
@@ -21,6 +26,9 @@ export default function MemberGroupView({ groupId }: { groupId: string }) {
   const [cycle, setCycle] = useState<CycleDoc | null>(null)
   const [board, setBoard] = useState<BoardEntry[] | null>(null)
   const [myStatus, setMyStatus] = useState<'pending' | 'paid' | 'overdue' | null>(null)
+  const [myRecords, setMyRecords] = useState<PaymentRecord[] | null>(null)
+  const [rangeFrom, setRangeFrom] = useState('')
+  const [rangeTo, setRangeTo] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -37,6 +45,10 @@ export default function MemberGroupView({ groupId }: { groupId: string }) {
         if (cancelled) return
         const mine = mirrors.filter((m) => m.data.groupId === groupId)
         if (mine.length > 0) setMyStatus(mine[0]!.data.myPaymentStatus ?? 'pending')
+        const ids = mine.map((m) => m.id)
+        const records = ids.length > 0 ? await fetchGroupPaymentRecords(groupId, ids) : []
+        if (cancelled) return
+        setMyRecords(records)
       }
 
       if (g && g.data.currentCycleNumber > 0) {
@@ -65,6 +77,7 @@ export default function MemberGroupView({ groupId }: { groupId: string }) {
 
   const g = group.data
   const overdue = cycle ? todayIso() > cycle.dueDate : false
+  const visibleMine = myRecords ? filterPaymentsByRange(myRecords, rangeFrom, rangeTo) : []
 
   return (
     <Page>
@@ -151,6 +164,21 @@ export default function MemberGroupView({ groupId }: { groupId: string }) {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {myRecords && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-sm font-semibold text-muted">{t('memberView.yourPayments')}</h2>
+          <DateRangeFields
+            from={rangeFrom}
+            to={rangeTo}
+            onFromChange={setRangeFrom}
+            onToChange={setRangeTo}
+          />
+          <div className="mt-4">
+            <PaymentHistoryList records={visibleMine} currency={g.currency} />
+          </div>
         </section>
       )}
     </Page>
