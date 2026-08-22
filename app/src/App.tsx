@@ -4,7 +4,9 @@ import LoginLinkPage from '@/pages/LoginLinkPage'
 import GroupsListPage from '@/pages/admin/GroupsListPage'
 import CreateGroupPage from '@/pages/admin/CreateGroupPage'
 import GroupDashboardPage from '@/pages/admin/GroupDashboardPage'
+import SettingsPage from '@/pages/SettingsPage'
 import OfflineBanner from '@/components/OfflineBanner'
+import InstallPrompt from '@/components/InstallPrompt'
 import { useAuth } from '@/lib/useAuth'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -29,6 +31,7 @@ export default function App() {
   return (
     <ViewModeProvider>
       <OfflineBanner />
+      <InstallPrompt />
       <BottomNav />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -54,6 +57,14 @@ export default function App() {
           element={
             <RequireAuth>
               <GroupDashboardPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <RequireAuth>
+              <SettingsPage />
             </RequireAuth>
           }
         />

@@ -1,6 +1,6 @@
 import type { Lang, MessageTemplate } from '@chitapp/shared'
 
-const DEFAULT_KWIC_PUSH_URL = 'https://app.kwic.in/api/v1/api/v1/push'
+const DEFAULT_KWIC_PUSH_URL = 'https://app.kwic.in/api/v1/push'
 const REQUEST_TIMEOUT_MS = 15_000
 
 /** Provider-agnostic WhatsApp sender backed by Kwic's push API. */

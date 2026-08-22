@@ -11,7 +11,6 @@ import { formatMinor } from '@shared'
 import type { BoardEntry, CycleDoc, GroupDoc } from '@shared'
 import { Chip, Page, PageHeader, Skeleton } from '@/components/ui'
 import { useT } from '@/i18n'
-import LanguageToggle from '@/components/LanguageToggle'
 import { PaymentMethodIcon } from '@/pages/admin/GroupDashboardPage'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
@@ -72,7 +71,6 @@ export default function MemberGroupView({ groupId }: { groupId: string }) {
       <PageHeader
         title={g.name}
         backTo="/groups"
-        rightElement={<LanguageToggle />}
       />
       {g.description && <p className="-mt-3 mb-5 text-sm text-muted">{g.description}</p>}
 

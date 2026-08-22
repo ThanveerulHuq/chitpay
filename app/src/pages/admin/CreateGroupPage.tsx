@@ -4,7 +4,6 @@ import { callCreateGroup } from '@/lib/api'
 import { toMinor } from '@shared'
 import { Button, DateInput, ErrorNote, Field, Input, Page, PageHeader, Select, Textarea } from '@/components/ui'
 import { useT } from '@/i18n'
-import LanguageToggle from '@/components/LanguageToggle'
 
 export default function CreateGroupPage() {
   const t = useT()
@@ -46,7 +45,6 @@ export default function CreateGroupPage() {
       <PageHeader
         title={t('createGroup.title')}
         backTo="/groups"
-        rightElement={<LanguageToggle />}
       />
 
       {error && <ErrorNote>{error}</ErrorNote>}

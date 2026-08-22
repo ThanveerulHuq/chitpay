@@ -138,6 +138,7 @@ export const en = {
   'dash.finalMonthDoneBanner': 'That was the final month of this group.',
   'dash.readyNextMonthBanner': 'Ready for the next month.',
   'dash.pastMonths': 'Past months',
+  'dash.allPayments': 'All payments',
   'dash.pastMonthLabel': 'Month {month}',
   'dash.rosterHeading': 'Members ({count})',
   'dash.rosterEmpty': 'No members yet.',
@@ -160,6 +161,33 @@ export const en = {
   'memberView.recipientBanner': '{name} receives {amount}',
   'memberView.thisMonthPayments': "This month's payments",
   'memberView.aMember': 'A member',
+
+  'payments.title': 'Payment history',
+  'payments.from': 'From',
+  'payments.to': 'To',
+  'payments.total': 'Collected',
+  'payments.empty': 'No payments yet',
+  'memberView.yourPayments': 'Your payments',
+
+  // Settings
+  'settings.title': 'Settings',
+  'settings.language': 'Language',
+  'settings.languageDesc': 'Select your preferred app language',
+  'settings.english': 'English',
+  'settings.tamil': 'தமிழ் (Tamil)',
+  'settings.account': 'Account',
+  'settings.phoneNumber': 'Phone number',
+  'settings.role': 'Role',
+  'settings.appInfo': 'About ChitPay',
+  'settings.appDescription': 'Simple & trustworthy chit fund management',
+
+  // App installation
+  'install.title': 'Install ChitPay',
+  'install.description': 'Add ChitPay to your home screen for quicker access.',
+  'install.iosDescription': 'Open ChitPay in Safari, tap Share, then choose Add to Home Screen.',
+  'install.action': 'Install',
+  'install.notNow': 'Not now',
+  'install.gotIt': 'Got it',
 
   // Offline & System
   'offline.banner': "You're offline — actions need a connection",

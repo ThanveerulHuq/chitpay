@@ -66,6 +66,7 @@ export default function LoginPage() {
                 <PhoneInput value={phone} onChange={setPhone} />
               </Field>
               <Button type="submit" disabled={busy || phone.length !== 10} className="w-full">
+                <WhatsappLogo size={20} weight="fill" />
                 {busy ? t('common.sending') : t('login.sendAccessLink')}
               </Button>
               <p className="text-center text-xs text-faint">{t('login.whatsappLinkNotice')}</p>
@@ -127,7 +128,7 @@ export default function LoginPage() {
           }}
           className="mx-auto mt-8 flex items-center gap-1.5 text-sm text-muted underline-offset-2 hover:text-ink hover:underline"
         >
-          <WhatsappLogo size={16} />
+          {mode === 'password' && <WhatsappLogo size={16} />}
           {mode === 'link' ? t('login.usePasswordInstead') : t('login.useWhatsappInstead')}
         </button>
       </div>

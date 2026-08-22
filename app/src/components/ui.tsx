@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
+import { Link } from 'react-router-dom'
 import { ArrowLeft, CalendarBlank } from '@phosphor-icons/react'
 import { useT } from '@/i18n'
 
@@ -154,13 +155,13 @@ export function PageHeader({
     <header className="mb-6 flex items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3">
         {backTo && (
-          <a
-            href={backTo}
+          <Link
+            to={backTo}
             aria-label={t('common.back')}
             className="shrink-0 rounded-full p-1 text-muted hover:text-ink"
           >
             <ArrowLeft size={20} weight="bold" />
-          </a>
+          </Link>
         )}
         <h1 className="truncate text-xl font-bold tracking-tight">{title}</h1>
       </div>

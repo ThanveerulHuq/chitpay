@@ -42,8 +42,6 @@ import {
   Textarea,
 } from '@/components/ui'
 import { useI18n, useT } from '@/i18n'
-import LanguageToggle from '@/components/LanguageToggle'
-
 import { useAuth } from '@/lib/useAuth'
 import { useViewMode } from '@/lib/useViewMode'
 
@@ -132,7 +130,6 @@ export default function GroupDashboardPage() {
       <PageHeader
         title={g.name}
         backTo="/groups"
-        rightElement={<LanguageToggle />}
       />
 
       {/* Stats strip */}

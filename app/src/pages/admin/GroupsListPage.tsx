@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Users, CalendarBlank, CurrencyInr, SignOut } from '@phosphor-icons/react'
+import { Plus, Users, CalendarBlank, CurrencyInr, Gear } from '@phosphor-icons/react'
 import { fetchMyGroups, fetchMyMemberships } from '@/lib/api'
 import { useAuth } from '@/lib/useAuth'
 import { formatMinor } from '@shared'
 import type { MembershipMirrorDoc } from '@shared'
 import { Chip, Page, Skeleton, Button } from '@/components/ui'
 import { useT } from '@/i18n'
-import LanguageToggle from '@/components/LanguageToggle'
-
 import { useViewMode } from '@/lib/useViewMode'
 
 type ListEntry =
@@ -17,7 +15,7 @@ type ListEntry =
 
 export default function GroupsListPage() {
   const t = useT()
-  const { logout, isAdmin } = useAuth()
+  const { isAdmin } = useAuth()
   const { viewMode } = useViewMode()
   const [allEntries, setAllEntries] = useState<ListEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,14 +71,6 @@ export default function GroupsListPage() {
           <h1 className="text-2xl font-bold tracking-tight">ChitPay</h1>
         </div>
         <div className="flex items-center gap-2">
-          <LanguageToggle />
-          <button
-            onClick={logout}
-            aria-label={t('common.logout')}
-            className="rounded-full p-2 text-muted transition-colors hover:bg-sunken hover:text-ink"
-          >
-            <SignOut size={18} />
-          </button>
           {(!isAdmin || viewMode === 'admin') && (
             <Link
               to="/groups/new"
@@ -90,6 +80,13 @@ export default function GroupsListPage() {
               {t('groups.newGroup')}
             </Link>
           )}
+          <Link
+            to="/settings"
+            aria-label={t('settings.title')}
+            className="rounded-full p-2 text-muted transition-colors hover:bg-sunken hover:text-ink"
+          >
+            <Gear size={20} />
+          </Link>
         </div>
       </div>
 

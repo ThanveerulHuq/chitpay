@@ -140,6 +140,7 @@ export const ta = {
   'dash.finalMonthDoneBanner': 'இது இந்தக் குழுவின் இறுதி மாதம் ஆகும்.',
   'dash.readyNextMonthBanner': 'அடுத்த மாதத்திற்கு தயார்.',
   'dash.pastMonths': 'முந்தைய மாதங்கள்',
+  'dash.allPayments': 'எல்லா செலுத்துதல்களும்',
   'dash.pastMonthLabel': 'மாதம் {month}',
   'dash.rosterHeading': 'உறுப்பினர்கள் ({count})',
   'dash.rosterEmpty': 'உறுப்பினர்கள் இன்னும் இல்லை.',
@@ -162,6 +163,33 @@ export const ta = {
   'memberView.recipientBanner': '{name}-க்கு இந்த மாத சீட்டுத் தொகை {amount} வழங்கப்படுகிறது',
   'memberView.thisMonthPayments': 'இந்த மாத வரவு விவரம்',
   'memberView.aMember': 'ஒரு உறுப்பினர்',
+
+  'payments.title': 'செலுத்துதல் வரலாறு',
+  'payments.from': 'இருந்து',
+  'payments.to': 'வரை',
+  'payments.total': 'மொத்த வசூல்',
+  'payments.empty': 'இன்னும் செலுத்துதல்கள் இல்லை',
+  'memberView.yourPayments': 'உங்கள் செலுத்துதல்கள்',
+
+  // Settings
+  'settings.title': 'அமைப்புகள்',
+  'settings.language': 'மொழி',
+  'settings.languageDesc': 'பயன்பாட்டின் விருப்ப மொழியைத் தேர்ந்தெடுக்கவும்',
+  'settings.english': 'English',
+  'settings.tamil': 'தமிழ் (Tamil)',
+  'settings.account': 'கணக்கு',
+  'settings.phoneNumber': 'கைபேசி எண்',
+  'settings.role': 'பங்கு',
+  'settings.appInfo': 'ChitPay பற்றி',
+  'settings.appDescription': 'நம்பிக்கையான எளிய சீட்டு நிர்வாகம்',
+
+  // App installation
+  'install.title': 'ChitPay-ஐ நிறுவுங்கள்',
+  'install.description': 'விரைவாகத் திறக்க ChitPay-ஐ உங்கள் முகப்புத் திரையில் சேருங்கள்.',
+  'install.iosDescription': 'Safari-ல் ChitPay-ஐத் திறந்து, பகிர் என்பதைத் தட்டி, முகப்புத் திரையில் சேர் என்பதைத் தேர்ந்தெடுக்கவும்.',
+  'install.action': 'நிறுவு',
+  'install.notNow': 'இப்போது வேண்டாம்',
+  'install.gotIt': 'புரிந்தது',
 
   // Offline & System
   'offline.banner': 'நீங்கள் ஆஃப்லைனில் உள்ளீர்கள் — செயல்களுக்கு இணைய இணைப்பு தேவை',
