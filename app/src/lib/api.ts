@@ -1,11 +1,13 @@
 import { httpsCallable } from 'firebase/functions'
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore'
+import { isoDateLocal } from '@shared'
 import type {
   BoardDoc,
   CycleDoc,
   GroupDoc,
   GroupMemberDoc,
   MembershipMirrorDoc,
+  PaymentDoc,
   PaymentMethod,
 } from '@shared'
 import { functions, db } from './firebase'
@@ -153,4 +155,72 @@ export async function fetchCycle(
 ): Promise<CycleDoc | null> {
   const snap = await getDoc(doc(db, 'groups', groupId, 'cycles', String(cycleNumber)))
   return snap.exists() ? (snap.data() as CycleDoc) : null
+}
+
+function toMillis(value: unknown): number | null {
+  if (typeof value === 'number') return value
+  if (value && typeof value === 'object' && 'toMillis' in value) {
+    return (value as { toMillis(): number }).toMillis()
+  }
+  return null
+}
+
+export interface PaymentRecord {
+  cycleNumber: number
+  membershipId: string
+  amountMinor: number
+  method: PaymentMethod | null
+  referenceNo: string | null
+  note: string | null
+  paidAtMs: number | null
+}
+
+async function fetchCyclePayments(
+  groupId: string,
+  cycleNumber: number,
+): Promise<(PaymentDoc & { membershipId: string })[]> {
+  const snap = await getDocs(
+    collection(db, 'groups', groupId, 'cycles', String(cycleNumber), 'payments'),
+  )
+  return snap.docs.map((d) => ({ ...(d.data() as PaymentDoc), membershipId: d.id }))
+}
+
+export async function fetchGroupPaymentRecords(
+  groupId: string,
+  membershipIds?: string[],
+): Promise<PaymentRecord[]> {
+  const wanted = membershipIds ? new Set(membershipIds) : null
+  const cycles = await fetchCycles(groupId)
+  const perCycle = await Promise.all(
+    cycles.map(async ({ id }) => {
+      const cycleNumber = Number(id)
+      const payments = await fetchCyclePayments(groupId, cycleNumber)
+      return payments
+        .filter((p) => p.status === 'paid' && (!wanted || wanted.has(p.membershipId)))
+        .map<PaymentRecord>((p) => ({
+          cycleNumber,
+          membershipId: p.membershipId,
+          amountMinor: p.amountMinor,
+          method: p.method,
+          referenceNo: p.referenceNo,
+          note: p.note,
+          paidAtMs: toMillis(p.paidAt),
+        }))
+    }),
+  )
+  return perCycle.flat().sort((a, b) => (b.paidAtMs ?? 0) - (a.paidAtMs ?? 0))
+}
+
+export function filterPaymentsByRange<T extends { paidAtMs: number | null }>(
+  records: T[],
+  fromIso: string,
+  toIso: string,
+): T[] {
+  return records.filter((r) => {
+    if (!r.paidAtMs) return false
+    const iso = isoDateLocal(r.paidAtMs)
+    if (fromIso && iso < fromIso) return false
+    if (toIso && iso > toIso) return false
+    return true
+  })
 }
