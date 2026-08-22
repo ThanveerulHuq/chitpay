@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 import { ArrowLeft, CalendarBlank } from '@phosphor-icons/react'
+import { useT } from '@/i18n'
 
 /* Buttons: 16px radius, tactile press, WCAG-checked label contrast. */
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'whatsapp'
@@ -139,15 +140,31 @@ export function Page({ children }: { children: ReactNode }) {
   return <div className="mx-auto min-h-dvh w-full max-w-lg px-4 pb-10 pt-6">{children}</div>
 }
 
-export function PageHeader({ title, backTo }: { title: string; backTo?: string }) {
+export function PageHeader({
+  title,
+  backTo,
+  rightElement,
+}: {
+  title: string
+  backTo?: string
+  rightElement?: ReactNode
+}) {
+  const t = useT()
   return (
-    <header className="mb-6 flex items-center gap-3">
-      {backTo && (
-        <a href={backTo} aria-label="Back" className="rounded-full p-1 text-muted hover:text-ink">
-          <ArrowLeft size={20} weight="bold" />
-        </a>
-      )}
-      <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+    <header className="mb-6 flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        {backTo && (
+          <a
+            href={backTo}
+            aria-label={t('common.back')}
+            className="shrink-0 rounded-full p-1 text-muted hover:text-ink"
+          >
+            <ArrowLeft size={20} weight="bold" />
+          </a>
+        )}
+        <h1 className="truncate text-xl font-bold tracking-tight">{title}</h1>
+      </div>
+      {rightElement && <div className="shrink-0">{rightElement}</div>}
     </header>
   )
 }

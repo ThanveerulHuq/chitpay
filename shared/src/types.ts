@@ -1,9 +1,11 @@
 export type Role = 'admin' | 'member'
+export type Lang = 'en' | 'ta'
 
 export interface UserDoc {
   name: string
   phone: string
   roles: Role[]
+  language?: Lang
   createdAt: number
 }
 

@@ -6,12 +6,15 @@ import { useAuth } from '@/lib/useAuth'
 import { formatMinor } from '@shared'
 import type { MembershipMirrorDoc } from '@shared'
 import { Chip, Page, Skeleton, Button } from '@/components/ui'
+import { useT } from '@/i18n'
+import LanguageToggle from '@/components/LanguageToggle'
 
 type ListEntry =
   | { kind: 'admin'; id: string; name: string; amountMinor: number; currency: string; memberCount: number; cycleNumber: number; durationMonths: number }
   | { kind: 'member'; id: string; name: string; amountMinor: number; currency: string; myStatus: MembershipMirrorDoc['myPaymentStatus'] }
 
 export default function GroupsListPage() {
+  const t = useT()
   const { logout } = useAuth()
   const [entries, setEntries] = useState<ListEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,12 +60,13 @@ export default function GroupsListPage() {
 
   return (
     <Page>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">My Groups</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">{t('groups.title')}</h1>
         <div className="flex items-center gap-2">
+          <LanguageToggle />
           <button
             onClick={logout}
-            aria-label="Log out"
+            aria-label={t('common.logout')}
             className="rounded-full p-2 text-muted transition-colors hover:bg-sunken hover:text-ink"
           >
             <SignOut size={18} />
@@ -72,7 +76,7 @@ export default function GroupsListPage() {
             className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent transition-transform active:scale-[0.98]"
           >
             <Plus size={16} weight="bold" />
-            New group
+            {t('groups.newGroup')}
           </Link>
         </div>
       </div>
@@ -90,12 +94,12 @@ export default function GroupsListPage() {
           <div className="flex size-14 items-center justify-center rounded-full bg-accent-soft text-accent-strong dark:text-accent">
             <Users size={28} />
           </div>
-          <p className="mt-4 font-semibold">No groups yet</p>
+          <p className="mt-4 font-semibold">{t('groups.emptyTitle')}</p>
           <p className="mt-1 max-w-[28ch] text-sm text-muted">
-            Create a group, add your members, and run your first month.
+            {t('groups.emptyDesc')}
           </p>
           <Link to="/groups/new" className="mt-5">
-            <Button>Create your first group</Button>
+            <Button>{t('groups.createFirst')}</Button>
           </Link>
         </div>
       )}
@@ -112,13 +116,13 @@ export default function GroupsListPage() {
               <div className="flex items-baseline justify-between gap-3">
                 <h2 className="truncate font-semibold">{entry.name}</h2>
                 <span className="shrink-0 text-sm text-muted">
-                  {formatMinor(entry.amountMinor, entry.currency)}/mo
+                  {t('common.perMonth', { amount: formatMinor(entry.amountMinor, entry.currency) })}
                 </span>
               </div>
               <div className="mt-2.5 flex items-center gap-3 text-xs text-muted">
                 {entry.kind === 'admin' ? (
                   <>
-                    <Chip tone="neutral">Admin</Chip>
+                    <Chip tone="neutral">{t('common.admin')}</Chip>
                     <span className="inline-flex items-center gap-1">
                       <Users size={13} /> {entry.memberCount}
                     </span>
@@ -133,7 +137,7 @@ export default function GroupsListPage() {
                   </>
                 ) : (
                   <Chip tone={entry.myStatus === 'paid' ? 'paid' : 'pending'}>
-                    {entry.myStatus == null ? 'Not started' : entry.myStatus === 'paid' ? 'Paid' : 'Payment due'}
+                    {entry.myStatus == null ? t('status.notStarted') : entry.myStatus === 'paid' ? t('status.paid') : t('status.paymentDue')}
                   </Chip>
                 )}
               </div>
@@ -146,6 +150,7 @@ export default function GroupsListPage() {
 }
 
 function AdminKpiStrip({ entries }: { entries: ListEntry[] }) {
+  const t = useT()
   const adminEntries = entries.filter((e): e is Extract<ListEntry, { kind: 'admin' }> => e.kind === 'admin')
   if (adminEntries.length === 0) return null
 
@@ -158,15 +163,15 @@ function AdminKpiStrip({ entries }: { entries: ListEntry[] }) {
   return (
     <dl className="mb-5 grid grid-cols-3 divide-x divide-line rounded-2xl border border-line bg-surface text-center">
       <div className="px-2 py-3">
-        <dt className="text-[11px] uppercase tracking-wide text-faint">Groups</dt>
+        <dt className="text-[11px] uppercase tracking-wide text-faint">{t('groups.kpiGroups')}</dt>
         <dd className="mt-0.5 text-sm font-bold tabular-nums">{adminEntries.length}</dd>
       </div>
       <div className="px-2 py-3">
-        <dt className="text-[11px] uppercase tracking-wide text-faint">Members</dt>
+        <dt className="text-[11px] uppercase tracking-wide text-faint">{t('groups.kpiMembers')}</dt>
         <dd className="mt-0.5 text-sm font-bold tabular-nums">{members}</dd>
       </div>
       <div className="px-2 py-3">
-        <dt className="text-[11px] uppercase tracking-wide text-faint">Monthly pool</dt>
+        <dt className="text-[11px] uppercase tracking-wide text-faint">{t('groups.kpiMonthlyPool')}</dt>
         <dd className="mt-0.5 truncate text-sm font-bold tabular-nums">
           {formatMinor(monthlyPool, adminEntries[0]!.currency)}
         </dd>
@@ -174,3 +179,4 @@ function AdminKpiStrip({ entries }: { entries: ListEntry[] }) {
     </dl>
   )
 }
+

@@ -86,3 +86,28 @@ test('admin acceptance flow (PRD §32)', async ({ page }) => {
   // 13. History shows the completed month
   await expect(page.getByText('Past months')).toBeVisible()
 })
+
+test('language toggle switches UI between English and Tamil', async ({ page }) => {
+  await page.goto('/login')
+
+  // Verify English default
+  await expect(page.getByText('Collect. Select. Manage.')).toBeVisible()
+  await expect(page.getByText('Mobile number')).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+
+  // Switch to Tamil
+  await page.getByRole('radio', { name: 'தமிழ்' }).click()
+
+  // Verify Tamil UI renders and html lang attribute is updated
+  await expect(page.getByText('வசூலிப்போம். தேர்ந்தெடுப்போம். நிர்வகிப்போம்.')).toBeVisible()
+  await expect(page.getByText('கைபேசி எண்')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'தொடர்க' })).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ta')
+
+  // Switch back to English
+  await page.getByRole('radio', { name: 'EN' }).click()
+  await expect(page.getByText('Collect. Select. Manage.')).toBeVisible()
+  await expect(page.getByText('Mobile number')).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+})
+

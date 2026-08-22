@@ -9,6 +9,7 @@ import type {
   MessageLogDoc,
   PaymentDoc,
   SelectionAuditDoc,
+  UserDoc,
 } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
 import { messaging } from './messaging.js'
@@ -125,15 +126,19 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
     // Best-effort recipient notification after the transaction commits.
     try {
       const userSnap = await db.doc(`users/${notifiedUid}`).get()
-      const user = userSnap.data() as { phone?: string } | undefined
+      const user = userSnap.data() as UserDoc | undefined
       if (user?.phone) {
-        const body = renderMessage('recipient_notification', {
-          memberName: notifiedName,
-          groupName,
-          amountMinor: poolAmountMinor,
-          currency,
-          poolAmountMinor,
-        })
+        const body = renderMessage(
+          'recipient_notification',
+          {
+            memberName: notifiedName,
+            groupName,
+            amountMinor: poolAmountMinor,
+            currency,
+            poolAmountMinor,
+          },
+          user.language ?? 'en',
+        )
         let error: string | null = null
         let providerMessageId: string | null = null
         try {

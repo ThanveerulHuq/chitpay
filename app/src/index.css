@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@fontsource-variable/outfit";
+@import "@fontsource-variable/noto-sans-tamil";
 
 /*
   ChitApp design tokens.
@@ -41,7 +42,7 @@
 }
 
 @theme inline {
-  --font-sans: "Outfit Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Outfit Variable", "Noto Sans Tamil Variable", ui-sans-serif, system-ui, sans-serif;
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-sunken: var(--surface-sunken);

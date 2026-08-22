@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { WifiSlash } from '@phosphor-icons/react'
+import { useT } from '@/i18n'
 
 export default function OfflineBanner() {
+  const t = useT()
   const [offline, setOffline] = useState(!navigator.onLine)
 
   useEffect(() => {
@@ -22,7 +24,7 @@ export default function OfflineBanner() {
       className="flex items-center justify-center gap-2 bg-sunken px-4 py-2 text-xs font-medium text-muted"
     >
       <WifiSlash size={14} />
-      You're offline — actions need a connection
+      {t('offline.banner')}
     </div>
   )
 }

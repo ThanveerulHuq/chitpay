@@ -15,7 +15,7 @@ import {
   fetchGroupMembers,
 } from '@/lib/api'
 import { whatsappLink } from '@/lib/whatsapp'
-import { formatMinor, toMinor } from '@shared'
+import { formatMinor, toMinor, userMessage } from '@shared'
 import type { BoardEntry, CycleDoc, GroupDoc, GroupMemberDoc, PaymentMethod } from '@shared'
 import MemberGroupView from '@/pages/member/MemberGroupView'
 import { auth } from '@/lib/firebase'
@@ -31,11 +31,14 @@ import {
   Skeleton,
   Textarea,
 } from '@/components/ui'
+import { useI18n, useT } from '@/i18n'
+import LanguageToggle from '@/components/LanguageToggle'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
 export default function GroupDashboardPage() {
   const { groupId = '' } = useParams()
+  const { t } = useI18n()
   const [group, setGroup] = useState<{ id: string; data: GroupDoc } | null>(null)
   const [members, setMembers] = useState<{ id: string; data: GroupMemberDoc }[]>([])
   const [cycle, setCycle] = useState<CycleDoc | null>(null)
@@ -109,13 +112,17 @@ export default function GroupDashboardPage() {
 
   return (
     <Page>
-      <PageHeader title={g.name} backTo="/groups" />
+      <PageHeader
+        title={g.name}
+        backTo="/groups"
+        rightElement={<LanguageToggle />}
+      />
 
       {/* Stats strip */}
       <dl className="grid grid-cols-3 divide-x divide-line rounded-2xl border border-line bg-surface text-center">
-        <Stat label="Per month" value={formatMinor(g.monthlyAmountMinor, g.currency)} />
-        <Stat label="Members" value={String(g.memberCount)} />
-        <Stat label="Month" value={`${Math.max(g.currentCycleNumber, 0)} / ${g.durationMonths}`} />
+        <Stat label={t('dash.statPerMonth')} value={formatMinor(g.monthlyAmountMinor, g.currency)} />
+        <Stat label={t('dash.statMembers')} value={String(g.memberCount)} />
+        <Stat label={t('dash.statMonth')} value={`${Math.max(g.currentCycleNumber, 0)} / ${g.durationMonths}`} />
       </dl>
 
       <CycleSection
@@ -131,12 +138,14 @@ export default function GroupDashboardPage() {
 
       {/* Roster */}
       <section className="mt-6">
-        <h2 className="mb-3 text-sm font-semibold text-muted">Members ({g.memberCount})</h2>
+        <h2 className="mb-3 text-sm font-semibold text-muted">
+          {t('dash.rosterHeading', { count: g.memberCount })}
+        </h2>
         {members.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-line p-8 text-center">
-            <p className="text-sm text-muted">No members yet.</p>
+            <p className="text-sm text-muted">{t('dash.rosterEmpty')}</p>
             <p className="mt-1 text-xs text-faint">
-              Add your first member below. They get a login password to share.
+              {t('dash.rosterEmptyHint')}
             </p>
           </div>
         ) : (
@@ -145,9 +154,11 @@ export default function GroupDashboardPage() {
               <li key={id} className="flex items-center justify-between py-3">
                 <span className="truncate text-sm font-medium">{m.displayName}</span>
                 {m.status === 'inactive' ? (
-                  <Chip tone="neutral">Inactive</Chip>
+                  <Chip tone="neutral">{t('common.inactive')}</Chip>
                 ) : (
-                  <span className="text-xs text-faint">Slot {m.slotNo}</span>
+                  <span className="text-xs text-faint">
+                    {t('common.slot', { slotNo: m.slotNo })}
+                  </span>
                 )}
               </li>
             ))}
@@ -184,6 +195,7 @@ function CycleSection({
   members: { id: string; data: GroupMemberDoc }[]
   onChanged: () => void
 }) {
+  const { t, lang } = useI18n()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [marking, setMarking] = useState<BoardEntry | null>(null)
@@ -196,7 +208,7 @@ function CycleSection({
       await callStartNextCycle(groupId)
       onChanged()
     } catch (err) {
-      setError(errMessage(err))
+      setError(errMessage(err, lang))
     } finally {
       setBusy(false)
     }
@@ -208,7 +220,7 @@ function CycleSection({
     try {
       await callSendReminder({ groupId })
     } catch (err) {
-      setError(errMessage(err))
+      setError(errMessage(err, lang))
     } finally {
       setReminding(false)
     }
@@ -222,17 +234,17 @@ function CycleSection({
         {error && <ErrorNote>{error}</ErrorNote>}
         {allMonthsDone ? (
           <div className="rounded-2xl border border-line bg-surface p-6 text-center">
-            <p className="font-semibold">All months complete</p>
-            <p className="mt-1 text-sm text-muted">This group has finished its full duration.</p>
+            <p className="font-semibold">{t('dash.allMonthsDoneTitle')}</p>
+            <p className="mt-1 text-sm text-muted">{t('dash.allMonthsDoneDesc')}</p>
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-line p-8 text-center">
-            <p className="font-semibold">Ready to start month 1</p>
+            <p className="font-semibold">{t('dash.readyStartTitle')}</p>
             <p className="mx-auto mt-1 max-w-[32ch] text-sm text-muted">
-              Opens the payment board for everyone and sets the due date.
+              {t('dash.readyStartDesc')}
             </p>
             <Button onClick={handleStart} disabled={busy} className="mt-5">
-              {busy ? 'Starting…' : 'Start month 1'}
+              {busy ? t('dash.starting') : t('dash.startMonth', { month: 1 })}
             </Button>
           </div>
         )}
@@ -252,23 +264,29 @@ function CycleSection({
       <div className="rounded-2xl border border-line bg-surface p-4">
         <div className="flex items-baseline justify-between">
           <h2 className="font-bold">
-            Month {cycle.monthNumber}
-            <span className="ml-1.5 text-sm font-medium text-muted">of {group.durationMonths}</span>
+            {t('dash.monthHeading', { current: cycle.monthNumber })}
+            <span className="ml-1.5 text-sm font-medium text-muted">
+              {t('dash.ofTotalMonths', { total: group.durationMonths })}
+            </span>
           </h2>
           <Chip tone={overdue ? 'overdue' : 'pending'}>
-            {overdue ? `Overdue · was due ${cycle.dueDate}` : `Due ${cycle.dueDate}`}
+            {overdue
+              ? t('dash.overdueWasDue', { date: cycle.dueDate })
+              : t('dash.dueOn', { date: cycle.dueDate })}
           </Chip>
         </div>
 
         {/* Progress */}
         <div className="mt-3 flex items-baseline justify-between text-sm">
           <span className="text-muted">
-            {paidCount}/{group.memberCount} paid
+            {t('dash.progressPaid', { paid: paidCount, total: group.memberCount })}
           </span>
           <span className="font-semibold tabular-nums">
             {formatMinor(group.collectedAmountMinor, group.currency)}{' '}
             <span className="font-normal text-faint">
-              of {formatMinor(group.monthlyAmountMinor * group.memberCount, group.currency)}
+              {t('dash.ofTotalPool', {
+                totalPool: formatMinor(group.monthlyAmountMinor * group.memberCount, group.currency),
+              })}
             </span>
           </span>
         </div>
@@ -287,7 +305,7 @@ function CycleSection({
             className="mt-4 w-full"
           >
             <Bell size={16} weight="fill" />
-            {reminding ? 'Sending…' : 'Remind unpaid'}
+            {reminding ? t('common.sending') : t('dash.remindUnpaid')}
           </Button>
         )}
       </div>
@@ -306,11 +324,15 @@ function CycleSection({
               >
                 <span className="truncate text-sm font-medium">{entry.name}</span>
                 {entry.status === 'paid' ? (
-                  <Chip tone="paid">Paid{entry.method ? ` · ${methodLabel(entry.method)}` : ''}</Chip>
+                  <Chip tone="paid">
+                    {entry.method
+                      ? t('dash.paidWithMethod', { method: methodLabel(entry.method, t) })
+                      : t('status.paid')}
+                  </Chip>
                 ) : (
                   <span className="flex items-center gap-2">
                     <Chip tone={isOverdue ? 'overdue' : 'pending'}>
-                      {isOverdue ? 'Overdue' : 'Pending'}
+                      {isOverdue ? t('status.overdue') : t('status.pending')}
                     </Chip>
                     <span className="text-faint" aria-hidden>
                       ›
@@ -349,8 +371,17 @@ function CycleSection({
   )
 }
 
-function methodLabel(method: PaymentMethod): string {
-  return { cash: 'Cash', upi: 'UPI', bank_transfer: 'Bank', other: 'Other' }[method]
+function methodLabel(method: PaymentMethod, t: (key: any) => string): string {
+  switch (method) {
+    case 'cash':
+      return t('dash.methodCash')
+    case 'upi':
+      return t('dash.methodUpi')
+    case 'bank_transfer':
+      return t('dash.methodBank')
+    case 'other':
+      return t('dash.methodOther')
+  }
 }
 
 function MarkPaidSheet({
@@ -366,6 +397,7 @@ function MarkPaidSheet({
   onClose: () => void
   onDone: () => void
 }) {
+  const { t, lang } = useI18n()
   const [method, setMethod] = useState<PaymentMethod>('cash')
   const [referenceNo, setReferenceNo] = useState('')
   const [note, setNote] = useState('')
@@ -386,10 +418,17 @@ function MarkPaidSheet({
       })
       onDone()
     } catch (err) {
-      setError(errMessage(err))
+      setError(errMessage(err, lang))
       setBusy(false)
     }
   }
+
+  const methodOptions: [PaymentMethod, string][] = [
+    ['cash', t('dash.methodCash')],
+    ['upi', t('dash.methodUpi')],
+    ['bank_transfer', t('dash.methodBank')],
+    ['other', t('dash.methodOther')],
+  ]
 
   return (
     <div
@@ -404,7 +443,9 @@ function MarkPaidSheet({
       >
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-bold">{entry.name} paid</h2>
+            <h2 className="text-lg font-bold">
+              {t('dash.markPaidTitle', { name: entry.name })}
+            </h2>
             <p className="text-sm text-muted">
               {formatMinor(group.monthlyAmountMinor, group.currency)}
             </p>
@@ -412,7 +453,7 @@ function MarkPaidSheet({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('common.close')}
             className="rounded-full p-1 text-muted hover:text-ink"
           >
             <X size={18} weight="bold" />
@@ -421,20 +462,13 @@ function MarkPaidSheet({
 
         {error && <ErrorNote>{error}</ErrorNote>}
 
-        <Field label="Payment method">
+        <Field label={t('dash.paymentMethod')}>
           <div
             role="radiogroup"
-            aria-label="Payment method"
+            aria-label={t('dash.paymentMethod')}
             className="mt-2 grid grid-cols-2 gap-2"
           >
-            {(
-              [
-                ['cash', 'Cash'],
-                ['upi', 'UPI'],
-                ['bank_transfer', 'Bank transfer'],
-                ['other', 'Other'],
-              ] as [PaymentMethod, string][]
-            ).map(([value, label]) => (
+            {methodOptions.map(([value, label]) => (
               <button
                 key={value}
                 type="button"
@@ -452,37 +486,37 @@ function MarkPaidSheet({
             ))}
           </div>
         </Field>
-        <Field label="Reference number" hint="Optional — UTR, cheque or receipt number.">
+        <Field label={t('dash.refNumber')} hint={t('dash.refNumberHint')}>
           <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} />
         </Field>
-        <Field label="Note" hint="Optional.">
+        <Field label={t('dash.note')} hint={t('common.optional')}>
           <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         </Field>
 
         <Button type="submit" disabled={busy} className="w-full">
-          {busy ? 'Saving…' : 'Record payment'}
+          {busy ? t('common.saving') : t('dash.recordPayment')}
         </Button>
       </form>
     </div>
   )
 }
 
-function errMessage(err: unknown): string {
+function errMessage(err: unknown, lang: 'en' | 'ta' = 'en'): string {
   const code = (err as { code?: string })?.code ?? ''
   switch (code) {
     case 'functions/failed-precondition':
       return (
         (err as { message?: string }).message?.match(/"([^"]+)"/)?.[1] ??
-        "That action isn't allowed right now."
+        userMessage('invalid_transition', lang)
       )
     case 'functions/already-exists':
-      return 'This month has already been started.'
+      return userMessage('already_exists', lang)
     case 'functions/already-selected':
-      return 'A recipient was already selected for this month.'
+      return userMessage('already_selected', lang)
     case 'functions/not-eligible':
-      return 'That member is not eligible for selection.'
+      return userMessage('not_eligible', lang)
     default:
-      return 'Something went wrong. Please try again.'
+      return userMessage('internal', lang)
   }
 }
 
@@ -507,6 +541,7 @@ function PayoutSection({
   onChanged: () => void
   onError: (msg: string) => void
 }) {
+  const { t, lang } = useI18n()
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState(String(poolAmountMinor / 100))
   const [busy, setBusy] = useState(false)
@@ -518,7 +553,7 @@ function PayoutSection({
       setOpen(false)
       onChanged()
     } catch (err) {
-      onError(errMessage(err))
+      onError(errMessage(err, lang))
       setOpen(false)
     } finally {
       setBusy(false)
@@ -532,13 +567,16 @@ function PayoutSection({
           <HandCoins size={22} className="shrink-0 text-accent-strong dark:text-accent" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">
-              {recipientName} receives {formatMinor(poolAmountMinor, currency)}
+              {t('dash.payoutNotice', {
+                name: recipientName,
+                amount: formatMinor(poolAmountMinor, currency),
+              })}
             </p>
-            <p className="text-xs text-muted">Hand over the pool, then record the payout.</p>
+            <p className="text-xs text-muted">{t('dash.payoutHint')}</p>
           </div>
         </div>
         <Button onClick={() => setOpen(true)} className="mt-4 w-full">
-          Record payout
+          {t('dash.recordPayout')}
         </Button>
       </div>
 
@@ -550,8 +588,8 @@ function PayoutSection({
           onClick={(e) => e.target === e.currentTarget && setOpen(false)}
         >
           <div className="w-full max-w-lg space-y-5 rounded-t-2xl bg-surface p-6 sm:rounded-2xl">
-            <h2 className="text-lg font-bold">Record payout</h2>
-            <Field label="Payout amount (₹)" hint="Pool total by default.">
+            <h2 className="text-lg font-bold">{t('dash.recordPayoutTitle')}</h2>
+            <Field label={t('dash.payoutAmountLabel')} hint={t('dash.payoutAmountHint')}>
               <Input
                 type="number"
                 min={1}
@@ -561,14 +599,14 @@ function PayoutSection({
               />
             </Field>
             <p className="-mt-2 text-xs text-muted">
-              This closes the month permanently.
+              {t('dash.payoutClosesMonth')}
             </p>
             <div className="flex gap-3">
               <Button variant="secondary" onClick={() => setOpen(false)} className="flex-1">
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button onClick={handleRecord} disabled={busy} className="flex-1">
-                {busy ? 'Recording…' : 'Confirm payout'}
+                {busy ? t('dash.recording') : t('dash.confirmPayout')}
               </Button>
             </div>
           </div>
@@ -587,6 +625,7 @@ function HistorySection({
   members: { id: string; data: GroupMemberDoc }[]
   currency: string
 }) {
+  const t = useT()
   const done = cycles
     .filter((c) => c.data.status === 'complete')
     .sort((a, b) => Number(a.id) - Number(b.id))
@@ -596,11 +635,13 @@ function HistorySection({
 
   return (
     <section className="mt-6">
-      <h2 className="mb-3 text-sm font-semibold text-muted">Past months</h2>
+      <h2 className="mb-3 text-sm font-semibold text-muted">{t('dash.pastMonths')}</h2>
       <ul className="divide-y divide-line rounded-2xl border border-line bg-surface px-4">
         {done.map(({ id, data }) => (
           <li key={id} className="flex items-center justify-between py-3">
-            <span className="text-sm text-muted">Month {data.monthNumber}</span>
+            <span className="text-sm text-muted">
+              {t('dash.pastMonthLabel', { month: data.monthNumber })}
+            </span>
             <span className="flex items-baseline gap-2">
               <span className="max-w-[10rem] truncate text-sm font-medium">
                 {nameById.get(data.recipientMembershipId ?? '') ?? '—'}
@@ -633,6 +674,7 @@ function SelectionSection({
   onChanged: () => void
   onError: (msg: string) => void
 }) {
+  const { t, lang } = useI18n()
   const [picking, setPicking] = useState(false)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [winner, setWinner] = useState<BoardEntry | null>(null)
@@ -657,7 +699,7 @@ function SelectionSection({
       return (
         <PayoutSection
           groupId={groupId}
-          recipientName={recipient?.name ?? 'A member'}
+          recipientName={recipient?.name ?? t('memberView.aMember')}
           poolAmountMinor={pool}
           currency={group.currency}
           onChanged={onChanged}
@@ -671,14 +713,16 @@ function SelectionSection({
         <Trophy size={22} className="shrink-0 text-accent-strong dark:text-accent" />
         <div>
           <p className="text-sm font-semibold text-accent-strong dark:text-accent">
-            Month {cycle.monthNumber} complete ·{' '}
-            {formatMinor(cycle.payout.amountMinor, group.currency)} paid to{' '}
-            {recipient?.name ?? 'member'}
+            {t('dash.monthCompleteBanner', {
+              month: cycle.monthNumber,
+              amount: formatMinor(cycle.payout.amountMinor, group.currency),
+              name: recipient?.name ?? t('memberView.aMember'),
+            })}
           </p>
           <p className="text-xs text-muted">
             {cycle.monthNumber >= group.durationMonths
-              ? 'That was the final month of this group.'
-              : 'Ready for the next month.'}
+              ? t('dash.finalMonthDoneBanner')
+              : t('dash.readyNextMonthBanner')}
           </p>
         </div>
       </div>
@@ -695,7 +739,7 @@ function SelectionSection({
       setWinner(null)
       onChanged()
     } catch (err) {
-      onError(errMessage(err))
+      onError(errMessage(err, lang))
       setWinner(null)
     } finally {
       setBusy(false)
@@ -726,11 +770,11 @@ function SelectionSection({
   if (eligible.length === 0) {
     return (
       <div className="mt-4 rounded-2xl border border-dashed border-line p-6 text-center">
-        <p className="text-sm font-semibold">No eligible members this month</p>
+        <p className="text-sm font-semibold">{t('dash.noEligibleTitle')}</p>
         <p className="mt-1 text-xs text-muted">
           {group.requirePaidToWin && board.some((e) => e.status === 'pending')
-            ? 'Members must pay before they can be picked.'
-            : 'Everyone has already received their turn.'}
+            ? t('dash.noEligibleMustPay')
+            : t('dash.noEligibleAllPicked')}
         </p>
       </div>
     )
@@ -757,15 +801,22 @@ function SelectionSection({
         ) : (
           <>
             <p className="font-semibold">
-              {cycle.monthNumber === group.durationMonths ? 'Final month' : 'Pick recipient'}
+              {cycle.monthNumber === group.durationMonths
+                ? t('dash.finalMonth')
+                : t('dash.pickRecipient')}
             </p>
             <p className="mx-auto mt-1 max-w-[34ch] text-sm text-muted">
-              {group.requirePaidToWin ? 'Paid' : 'All'} eligible members:{' '}
-              <span className="font-semibold text-ink">{eligible.length}</span> · Pool{' '}
-              {formatMinor(group.monthlyAmountMinor * Math.max(group.memberCount, 1), group.currency)}
+              {t('dash.eligibleMembersCount', {
+                type: group.requirePaidToWin ? t('dash.eligiblePaid') : t('dash.eligibleAll'),
+                count: eligible.length,
+                pool: formatMinor(
+                  group.monthlyAmountMinor * Math.max(group.memberCount, 1),
+                  group.currency,
+                ),
+              })}
             </p>
             <Button onClick={startPick} className="mt-4">
-              Pick randomly
+              {t('dash.pickRandomly')}
             </Button>
           </>
         )}
@@ -782,15 +833,19 @@ function SelectionSection({
             <Trophy size={28} className="mx-auto text-accent-strong dark:text-accent" weight="fill" />
             <h2 className="mt-3 text-lg font-bold">{winner.name}</h2>
             <p className="mt-1 text-sm text-muted">
-              receives {formatMinor(group.monthlyAmountMinor * Math.max(group.memberCount, 1), group.currency)}{' '}
-              this month?
+              {t('dash.winnerReceives', {
+                amount: formatMinor(
+                  group.monthlyAmountMinor * Math.max(group.memberCount, 1),
+                  group.currency,
+                ),
+              })}
             </p>
             <div className="mt-5 flex gap-3">
               <Button variant="secondary" onClick={() => setWinner(null)} className="flex-1">
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button onClick={handleConfirm} disabled={busy} className="flex-1">
-                {busy ? 'Confirming…' : 'Confirm'}
+                {busy ? t('common.confirming') : t('common.confirm')}
               </Button>
             </div>
           </div>
@@ -807,6 +862,7 @@ function AddMemberSection({
   groupId: string
   onAdded: () => void
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -839,7 +895,7 @@ function AddMemberSection({
     <>
       {!open && (
         <Button variant="secondary" onClick={() => setOpen(true)} className="mt-6 w-full">
-          Add member
+          {t('dash.addMember')}
         </Button>
       )}
 
@@ -848,12 +904,12 @@ function AddMemberSection({
           onSubmit={handleAdd}
           className="mt-6 space-y-5 rounded-2xl border border-line bg-surface p-5"
         >
-          <h2 className="font-semibold">Add member</h2>
+          <h2 className="font-semibold">{t('dash.addMember')}</h2>
           {error && <ErrorNote>{error}</ErrorNote>}
-          <Field label="Name">
+          <Field label={t('dash.memberName')}>
             <Input required value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
-          <Field label="Mobile number" hint="Used for their login and WhatsApp reminders.">
+          <Field label={t('dash.memberPhone')} hint={t('dash.memberPhoneHint')}>
             <PhoneInput
               value={phone}
               onChange={setPhone}
@@ -869,10 +925,10 @@ function AddMemberSection({
               }}
               className="flex-1"
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={busy || phone.length !== 10} className="flex-1">
-              {busy ? 'Adding…' : 'Add'}
+              {busy ? t('common.adding') : t('common.add')}
             </Button>
           </div>
         </form>
@@ -886,37 +942,44 @@ function AddMemberSection({
         >
           <div className="w-full max-w-lg rounded-t-2xl bg-surface p-6 sm:rounded-2xl">
             <div className="flex items-start justify-between">
-              <h2 className="text-lg font-bold">{invite.name} added</h2>
+              <h2 className="text-lg font-bold">
+                {t('dash.memberAddedTitle', { name: invite.name })}
+              </h2>
               <button
                 onClick={() => setInvite(null)}
-                aria-label="Close"
+                aria-label={t('common.close')}
                 className="rounded-full p-1 text-muted hover:text-ink"
               >
                 <X size={18} weight="bold" />
               </button>
             </div>
-            <p className="mt-1 text-sm text-muted">Share these login details with them:</p>
+            <p className="mt-1 text-sm text-muted">{t('dash.shareLoginDetails')}</p>
             <div className="mt-4 rounded-2xl bg-sunken p-4 text-center">
-              <p className="text-[11px] uppercase tracking-wide text-faint">Password</p>
+              <p className="text-[11px] uppercase tracking-wide text-faint">
+                {t('dash.passwordLabel')}
+              </p>
               <p className="mt-1 font-mono text-2xl font-bold tracking-widest">{invite.password}</p>
             </div>
             <a
               href={whatsappLink(
                 invite.phone,
-                `Hi ${invite.name}! You've been added to a chit group on ChitApp. Login at https://chitapp.app with your mobile number and password: ${invite.password}`,
+                t('dash.whatsappInviteText', {
+                  name: invite.name,
+                  password: invite.password,
+                }),
               )}
               target="_blank"
               rel="noreferrer"
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] py-3 font-semibold text-[#06301b] transition-transform active:scale-[0.98]"
             >
               <WhatsappLogo size={20} weight="fill" />
-              Send via WhatsApp
+              {t('dash.sendViaWhatsapp')}
             </a>
             <button
               onClick={() => setInvite(null)}
               className="mt-3 w-full py-2 text-center text-sm text-muted underline-offset-2 hover:text-ink hover:underline"
             >
-              Done
+              {t('common.done')}
             </button>
           </div>
         </div>

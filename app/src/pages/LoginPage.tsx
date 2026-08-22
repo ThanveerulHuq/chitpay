@@ -2,14 +2,17 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { WhatsappLogo } from '@phosphor-icons/react'
 import { requestOtp, signInWithPassword, verifyOtp } from '@/lib/auth'
-import { resendInMs } from '@shared'
+import { resendInMs, userMessage } from '@shared'
 import { Button, ErrorNote, Field, Input, PhoneInput } from '@/components/ui'
+import { useI18n } from '@/i18n'
+import LanguageToggle from '@/components/LanguageToggle'
 
 type Mode = 'otp' | 'password'
 type Step = 'phone' | 'code'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { t, lang } = useI18n()
   const [mode, setMode] = useState<Mode>('otp')
   const [step, setStep] = useState<Step>('phone')
   const [phone, setPhone] = useState('')
@@ -39,7 +42,7 @@ export default function LoginPage() {
       setLastSentAt(Date.now())
       setNow(Date.now())
     } catch (err) {
-      setError(errMessage(err))
+      setError(errMessage(err, lang))
     } finally {
       setBusy(false)
     }
@@ -53,7 +56,7 @@ export default function LoginPage() {
       await verifyOtp(fullPhone, code)
       navigate('/', { replace: true })
     } catch (err) {
-      setError(errMessage(err))
+      setError(errMessage(err, lang))
     } finally {
       setBusy(false)
     }
@@ -67,49 +70,52 @@ export default function LoginPage() {
       await signInWithPassword(fullPhone, password)
       navigate('/', { replace: true })
     } catch (err) {
-      setError(errMessage(err))
+      setError(errMessage(err, lang))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="flex min-h-dvh flex-col justify-start px-6 pb-10 pt-[10dvh]">
+    <div className="flex min-h-dvh flex-col justify-start px-6 pb-10 pt-6 sm:pt-[10dvh]">
+      <div className="flex justify-end mb-4 sm:mb-8">
+        <LanguageToggle />
+      </div>
       <div className="mx-auto w-full max-w-sm">
         <img
           src="/brand/chitpay-login-artwork.png"
           alt=""
           className="mx-auto mb-6 h-40 w-40 object-contain"
         />
-        <h1 className="text-center text-3xl font-bold tracking-tight">ChitPay</h1>
-        <p className="mt-1 text-center text-muted">Collect. Select. Manage.</p>
+        <h1 className="text-center text-3xl font-bold tracking-tight">{t('brand.name')}</h1>
+        <p className="mt-1 text-center text-muted">{t('brand.tagline')}</p>
 
         <div className="mt-10">
           {error && <ErrorNote>{error}</ErrorNote>}
 
           {mode === 'otp' && step === 'phone' && (
             <form onSubmit={handleSendOtp} className="space-y-5">
-              <Field label="Mobile number">
+              <Field label={t('login.mobileNumber')}>
                 <PhoneInput
                   value={phone}
                   onChange={setPhone}
                 />
               </Field>
               <Button type="submit" disabled={busy || phone.length !== 10} className="w-full">
-                {busy ? 'Sending…' : 'Continue'}
+                {busy ? t('common.sending') : t('common.continue')}
               </Button>
               <p className="text-center text-xs text-faint">
-                We will send a login code to your WhatsApp.
+                {t('login.whatsappNotice')}
               </p>
             </form>
           )}
 
           {mode === 'otp' && step === 'code' && (
             <form onSubmit={handleVerify} className="space-y-5">
-              <Field label={`Code sent to +91 ${phone}`}>
+              <Field label={t('login.codeSentTo', { phone })}>
                 <DigitBoxes
                   name="otp"
-                  ariaLabel="Six-digit login code"
+                  ariaLabel={t('login.sixDigitAria')}
                   autoComplete="one-time-code"
                   length={6}
                   value={code}
@@ -118,7 +124,7 @@ export default function LoginPage() {
                 />
               </Field>
               <Button type="submit" disabled={busy || code.length !== 6} className="w-full">
-                {busy ? 'Verifying…' : 'Verify and sign in'}
+                {busy ? t('common.verifying') : t('login.verifyAndSignIn')}
               </Button>
               <div className="flex justify-between text-sm">
                 <button
@@ -126,7 +132,7 @@ export default function LoginPage() {
                   onClick={() => setStep('phone')}
                   className="text-muted underline-offset-2 hover:text-ink hover:underline"
                 >
-                  Change number
+                  {t('login.changeNumber')}
                 </button>
                 <button
                   type="button"
@@ -134,7 +140,9 @@ export default function LoginPage() {
                   onClick={() => handleSendOtp()}
                   className="text-accent-strong underline-offset-2 hover:underline disabled:opacity-40 dark:text-accent"
                 >
-                  {cooldown > 0 ? `Resend in ${Math.ceil(cooldown / 1000)}s` : 'Resend code'}
+                  {cooldown > 0
+                    ? t('login.resendIn', { seconds: Math.ceil(cooldown / 1000) })
+                    : t('login.resendCode')}
                 </button>
               </div>
             </form>
@@ -142,15 +150,15 @@ export default function LoginPage() {
 
           {mode === 'password' && (
             <form onSubmit={handlePasswordLogin} className="space-y-5">
-              <Field label="Mobile number">
+              <Field label={t('login.mobileNumber')}>
                 <PhoneInput
                   value={phone}
                   onChange={setPhone}
                 />
               </Field>
               <Field
-                label="Password"
-                hint="Shared with you by your group admin."
+                label={t('login.password')}
+                hint={t('login.passwordHint')}
               >
                 <Input
                   type="text"
@@ -166,7 +174,7 @@ export default function LoginPage() {
                 />
               </Field>
               <Button type="submit" disabled={busy || phone.length !== 10} className="w-full">
-                {busy ? 'Signing in…' : 'Sign in'}
+                {busy ? t('common.signingIn') : t('login.signIn')}
               </Button>
             </form>
           )}
@@ -182,7 +190,7 @@ export default function LoginPage() {
           className="mx-auto mt-8 flex items-center gap-1.5 text-sm text-muted underline-offset-2 hover:text-ink hover:underline"
         >
           <WhatsappLogo size={16} />
-          {mode === 'otp' ? 'Use password instead' : 'Login with WhatsApp code instead'}
+          {mode === 'otp' ? t('login.usePasswordInstead') : t('login.useWhatsappInstead')}
         </button>
       </div>
     </div>
@@ -248,19 +256,22 @@ function unformatPassword(display: string): string {
   return display.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8)
 }
 
-function errMessage(err: unknown): string {
+function errMessage(err: unknown, lang: 'en' | 'ta' = 'en'): string {
   const code = (err as { code?: string })?.code ?? ''
   switch (code) {
     case 'functions/already-exists':
     case 'auth/invalid-credential':
-      return 'Wrong number or password.'
+      return lang === 'ta' ? 'தவறான எண் அல்லது கடவுச்சொல்.' : 'Wrong number or password.'
     case 'functions/resource-exhausted':
-      return 'Too many attempts. Please wait a minute and try again.'
+      return userMessage('rate_limited', lang)
     case 'functions/invalid-argument':
-      return 'Incorrect or expired code.'
+      return userMessage('invalid_argument', lang)
     case 'functions/unavailable':
-      return "Can't reach the server. Check your connection."
+      return lang === 'ta'
+        ? 'சேவையகத்தை இணைக்க முடியவில்லை. உங்கள் இணைப்பைச் சரிபார்க்கவும்.'
+        : "Can't reach the server. Check your connection."
     default:
-      return 'Something went wrong. Please try again.'
+      return userMessage('internal', lang)
   }
 }
+

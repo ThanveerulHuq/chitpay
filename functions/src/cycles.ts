@@ -14,6 +14,7 @@ import type {
   MessageLogDoc,
   PaymentDoc,
   PaymentMethod,
+  UserDoc,
 } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
 import { messaging } from './messaging.js'
@@ -302,16 +303,20 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
       if (!member) continue
 
       const userSnap = await db.doc(`users/${member.uid}`).get()
-      const user = userSnap.data() as { phone?: string } | undefined
+      const user = userSnap.data() as UserDoc | undefined
       if (!user?.phone) continue
 
-      const body = renderMessage(template, {
-        memberName: member.displayName,
-        groupName: group.name,
-        amountMinor: group.monthlyAmountMinor,
-        currency: group.currency,
-        dueDate: cycle.dueDate,
-      })
+      const body = renderMessage(
+        template,
+        {
+          memberName: member.displayName,
+          groupName: group.name,
+          amountMinor: group.monthlyAmountMinor,
+          currency: group.currency,
+          dueDate: cycle.dueDate,
+        },
+        user.language ?? 'en',
+      )
 
       let error: string | null = null
       let providerMessageId: string | null = null
