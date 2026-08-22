@@ -17,7 +17,7 @@ const config: FirebaseOptions = {
 const app = getApps().length ? getApps()[0] : initializeApp(config)
 
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+export const db = getFirestore(app, 'chitpay')
 export const functions = getFunctions(app, 'asia-south1')
 
 // Initialize Analytics only if it is supported (e.g. browser environment)

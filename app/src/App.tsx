@@ -33,7 +33,6 @@ export default function App() {
     <ViewModeProvider>
       <OfflineBanner />
       <InstallPrompt />
-      <BottomNav />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/login/link/:id" element={<LoginLinkPage />} />
@@ -80,6 +79,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/groups" replace />} />
         <Route path="*" element={<Navigate to="/groups" replace />} />
       </Routes>
+      <BottomNav />
     </ViewModeProvider>
   )
 }

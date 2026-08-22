@@ -6,5 +6,5 @@ import { getAuth } from 'firebase-admin/auth'
 // this file, so its module body is evaluated first.
 initializeApp()
 
-export const db = getFirestore()
+export const db = getFirestore('chitpay')
 export const auth = getAuth()

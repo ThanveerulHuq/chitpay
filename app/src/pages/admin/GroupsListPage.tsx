@@ -61,7 +61,7 @@ export default function GroupsListPage() {
 
   return (
     <Page>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <header className="sticky top-0 z-30 -mx-4 mb-5 flex items-center justify-between gap-3 border-b border-line/50 bg-bg/90 px-4 py-3.5 backdrop-blur pt-[max(0.875rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-2.5">
           <img
             src="/brand/chitpay-app-icon-hands.png"
@@ -74,7 +74,7 @@ export default function GroupsListPage() {
           {(!isAdmin || viewMode === 'admin') && (
             <Link
               to="/groups/new"
-              className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent transition-transform active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition-transform active:scale-[0.98]"
             >
               <Plus size={16} weight="bold" />
               {t('groups.newGroup')}
@@ -88,7 +88,7 @@ export default function GroupsListPage() {
             <Gear size={20} />
           </Link>
         </div>
-      </div>
+      </header>
 
       {loading && (
         <div className="space-y-3">

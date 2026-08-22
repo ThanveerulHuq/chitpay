@@ -27,6 +27,7 @@ export interface GroupDoc {
   memberCount: number
   paidCount: number
   collectedAmountMinor: number
+  financialSummaryVersion?: number
   createdAt: number
 }
 
@@ -39,6 +40,8 @@ export interface GroupMemberDoc {
   displayName: string
   status: MemberSlotStatus
   selectedInCycle: number | null
+  totalContributedMinor: number
+  paidCycleCount: number
   joinedAt: number
 }
 
@@ -66,6 +69,8 @@ export interface CycleDoc {
   status: CycleStatus
   recipientMembershipId: string | null
   payout: PayoutInfo
+  paidCount: number
+  collectedAmountMinor: number
   createdAt: number
 }
 
@@ -79,6 +84,30 @@ export interface PaymentDoc {
   note: string | null
   paidAt: number | null
   recordedBy: string | null
+  updatedAt?: number | null
+}
+
+export type PaymentEventType = 'recorded' | 'edited' | 'reversed'
+
+export interface PaymentEventSnapshot {
+  status: PaymentStatus
+  amountMinor: number
+  method: PaymentMethod | null
+  referenceNo: string | null
+  note: string | null
+  paidAt: number | null
+}
+
+export interface PaymentEventDoc {
+  groupId: string
+  cycleNumber: number
+  membershipId: string
+  type: PaymentEventType
+  before: PaymentEventSnapshot | null
+  after: PaymentEventSnapshot | null
+  reason: string | null
+  performedBy: string
+  createdAt: number
 }
 
 export interface BoardEntry {
@@ -132,6 +161,7 @@ export type MessageStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed'
 
 export interface MessageLogDoc {
   groupId: string
+  cycleNumber?: number
   template: MessageTemplate
   toPhone: string
   membershipId: string | null

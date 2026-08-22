@@ -93,6 +93,7 @@ export async function callMarkPaid(input: {
   groupId: string
   membershipId: string
   method: PaymentMethod
+  cycleNumber?: number
   referenceNo?: string
   note?: string
 }): Promise<void> {

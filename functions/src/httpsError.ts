@@ -1,21 +1,35 @@
-import { HttpsError } from 'firebase-functions/v2/https'
-import { AppError, AppErrorCode } from '@chitapp/shared'
+import { HttpsError, type FunctionsErrorCode } from 'firebase-functions/v2/https'
+import { logger } from 'firebase-functions'
+import { AppError, type AppErrorCode } from '@chitapp/shared'
 
-/** Converts AppError into an HttpsError with the code preserved for the client. */
-export function toHttpsError(err: unknown): HttpsError {
+const CODE_MAP: Record<AppErrorCode, FunctionsErrorCode> = {
+  unauthenticated: 'unauthenticated',
+  permission_denied: 'permission-denied',
+  not_found: 'not-found',
+  already_exists: 'already-exists',
+  rate_limited: 'resource-exhausted',
+  invalid_argument: 'invalid-argument',
+  invalid_transition: 'failed-precondition',
+  already_selected: 'failed-precondition',
+  not_eligible: 'failed-precondition',
+  payout_pending: 'failed-precondition',
+  internal: 'internal',
+}
+
+/** Converts AppError into an HttpsError with the code preserved for the client, logging details. */
+export function toHttpsError(err: unknown, context?: Record<string, unknown>): HttpsError {
   if (err instanceof AppError) {
-    const { code } = err
-    return new HttpsError(
-      code === 'unauthenticated' ? 'unauthenticated'
-        : code === 'permission_denied' ? 'permission-denied'
-        : code === 'not_found' ? 'not-found'
-        : code === 'already_exists' ? 'already-exists'
-        : code === 'rate_limited' ? 'resource-exhausted'
-        : code === 'invalid_argument' ? 'invalid-argument'
-        : 'internal',
-      code,
-    )
+    const functionsCode = CODE_MAP[err.code] ?? 'internal'
+    logger.warn(`AppError [${err.code}]: ${err.message}`, {
+      code: err.code,
+      message: err.message,
+      functionsCode,
+      ...(context ?? {}),
+    })
+    return new HttpsError(functionsCode, err.message, { code: err.code })
   }
-  console.error('Unhandled error:', err)
+
+  logger.error('Unhandled error:', err, context)
   return new HttpsError('internal', 'internal' satisfies AppErrorCode)
 }
+

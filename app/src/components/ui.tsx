@@ -138,7 +138,7 @@ export function Chip({ tone, children }: { tone: 'neutral' | 'paid' | 'pending' 
 
 /* Page scaffold */
 export function Page({ children }: { children: ReactNode }) {
-  return <div className="mx-auto min-h-dvh w-full max-w-lg px-4 pb-10 pt-6">{children}</div>
+  return <div className="mx-auto min-h-dvh w-full max-w-lg px-4 pb-24 pt-0">{children}</div>
 }
 
 export function PageHeader({
@@ -152,7 +152,7 @@ export function PageHeader({
 }) {
   const t = useT()
   return (
-    <header className="mb-6 flex items-center justify-between gap-3">
+    <header className="sticky top-0 z-30 -mx-4 mb-5 flex items-center justify-between gap-3 border-b border-line/50 bg-bg/90 px-4 py-3.5 backdrop-blur pt-[max(0.875rem,env(safe-area-inset-top))]">
       <div className="flex min-w-0 items-center gap-3">
         {backTo && (
           <Link

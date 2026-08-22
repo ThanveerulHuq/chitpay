@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { DownloadSimple, ShareNetwork, X } from '@phosphor-icons/react'
 import { useT } from '@/i18n'
 import { Button } from '@/components/ui'
+import { useBodyLock } from '@/lib/useBodyLock'
 
 const DISMISSED_AT_KEY = 'chitpay_install_prompt_dismissed_at'
 const DISMISSAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000
@@ -90,7 +91,10 @@ export default function InstallPrompt() {
     }
   }
 
-  if (!deferredPrompt && !showIosInstructions) return null
+  const isOpen = Boolean(deferredPrompt || showIosInstructions)
+  useBodyLock(isOpen)
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/35 px-4 pb-4 sm:items-center">
@@ -99,7 +103,7 @@ export default function InstallPrompt() {
         aria-modal="true"
         aria-labelledby="install-prompt-title"
         aria-describedby="install-prompt-description"
-        className="w-full max-w-md rounded-3xl border border-line bg-surface p-5 shadow-2xl"
+        className="w-full max-w-md max-h-[88dvh] overflow-y-auto rounded-3xl border border-line bg-surface p-5 shadow-2xl"
       >
         <div className="flex items-start gap-4">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent-strong dark:text-accent">

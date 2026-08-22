@@ -44,6 +44,7 @@ import {
 import { useI18n, useT } from '@/i18n'
 import { useAuth } from '@/lib/useAuth'
 import { useViewMode } from '@/lib/useViewMode'
+import { useBodyLock } from '@/lib/useBodyLock'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
@@ -486,18 +487,21 @@ function MarkPaidSheet({
     { value: 'other', label: t('dash.methodOther'), Icon: DotsThreeOutline },
   ]
 
+  useBodyLock(true)
+
   return (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-10 flex items-end bg-black/40 sm:items-center sm:justify-center"
+      className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-lg space-y-5 rounded-t-2xl bg-surface p-6 sm:rounded-2xl"
+        className="flex max-h-[85vh] max-h-[85dvh] w-full max-w-lg flex-col rounded-t-3xl bg-surface shadow-2xl sm:rounded-2xl"
       >
-        <div className="flex items-start justify-between">
+        {/* Header - Pinned */}
+        <div className="flex shrink-0 items-start justify-between border-b border-line/50 p-5 pb-4">
           <div>
             <h2 className="text-lg font-bold">
               {t('dash.markPaidTitle', { name: entry.name })}
@@ -510,68 +514,94 @@ function MarkPaidSheet({
             type="button"
             onClick={onClose}
             aria-label={t('common.close')}
-            className="rounded-full p-1 text-muted hover:text-ink"
+            className="rounded-full p-1.5 text-muted hover:bg-sunken hover:text-ink"
           >
-            <X size={18} weight="bold" />
+            <X size={20} weight="bold" />
           </button>
         </div>
 
-        {error && <ErrorNote>{error}</ErrorNote>}
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-5 space-y-4">
+          {error && <ErrorNote>{error}</ErrorNote>}
 
-        <Field label={t('dash.paymentMethod')}>
-          <div
-            role="radiogroup"
-            aria-label={t('dash.paymentMethod')}
-            className="mt-2 grid grid-cols-2 gap-2"
-          >
-            {methodOptions.map(({ value, label, Icon }) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={method === value}
-                onClick={() => setMethod(value)}
-                className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-medium transition-colors ${
-                  method === value
-                    ? 'border-accent bg-accent-soft text-accent-strong dark:border-accent dark:text-accent font-semibold'
-                    : 'border-line bg-surface text-muted hover:bg-sunken hover:text-ink'
-                }`}
-              >
-                <Icon size={18} weight={method === value ? 'bold' : 'regular'} />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        </Field>
-        <Field label={t('dash.refNumber')} hint={t('dash.refNumberHint')}>
-          <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} />
-        </Field>
-        <Field label={t('dash.note')} hint={t('common.optional')}>
-          <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-        </Field>
+          <Field label={t('dash.paymentMethod')}>
+            <div
+              role="radiogroup"
+              aria-label={t('dash.paymentMethod')}
+              className="mt-2 grid grid-cols-2 gap-2"
+            >
+              {methodOptions.map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={method === value}
+                  onClick={() => setMethod(value)}
+                  className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-medium transition-colors ${
+                    method === value
+                      ? 'border-accent bg-accent-soft text-accent-strong dark:border-accent dark:text-accent font-semibold'
+                      : 'border-line bg-surface text-muted hover:bg-sunken hover:text-ink'
+                  }`}
+                >
+                  <Icon size={18} weight={method === value ? 'bold' : 'regular'} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </Field>
+          <Field label={t('dash.refNumber')} hint={t('dash.refNumberHint')}>
+            <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} />
+          </Field>
+          <Field label={t('dash.note')} hint={t('common.optional')}>
+            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+          </Field>
+        </div>
 
-        <Button type="submit" disabled={busy} className="w-full">
-          {busy ? t('common.saving') : t('dash.recordPayment')}
-        </Button>
+        {/* Footer - Pinned Action Button */}
+        <div className="shrink-0 border-t border-line/50 p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-5">
+          <Button type="submit" disabled={busy} className="w-full">
+            {busy ? t('common.saving') : t('dash.recordPayment')}
+          </Button>
+        </div>
       </form>
     </div>
   )
 }
 
 function errMessage(err: unknown, lang: 'en' | 'ta' = 'en'): string {
+  const detailsCode = (err as { details?: { code?: Parameters<typeof userMessage>[0] } })?.details?.code
+  if (detailsCode) {
+    return userMessage(detailsCode, lang)
+  }
   const code = (err as { code?: string })?.code ?? ''
   switch (code) {
+    case 'functions/permission-denied':
+    case 'permission-denied':
+      return userMessage('permission_denied', lang)
+    case 'functions/unauthenticated':
+    case 'unauthenticated':
+      return userMessage('unauthenticated', lang)
+    case 'functions/not-found':
+    case 'not-found':
+      return userMessage('not_found', lang)
     case 'functions/failed-precondition':
+    case 'failed-precondition':
       return (
         (err as { message?: string }).message?.match(/"([^"]+)"/)?.[1] ??
         userMessage('invalid_transition', lang)
       )
     case 'functions/already-exists':
+    case 'already-exists':
       return userMessage('already_exists', lang)
     case 'functions/already-selected':
+    case 'already-selected':
       return userMessage('already_selected', lang)
     case 'functions/not-eligible':
+    case 'not-eligible':
       return userMessage('not_eligible', lang)
+    case 'functions/invalid-argument':
+    case 'invalid-argument':
+      return userMessage('invalid_argument', lang)
     default:
       return userMessage('internal', lang)
   }
@@ -617,6 +647,8 @@ function PayoutSection({
     }
   }
 
+  useBodyLock(open)
+
   return (
     <>
       <div className="mt-4 rounded-2xl border border-line bg-surface p-4">
@@ -641,24 +673,41 @@ function PayoutSection({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-10 flex items-end bg-black/40 sm:items-center sm:justify-center"
+          className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
           onClick={(e) => e.target === e.currentTarget && setOpen(false)}
         >
-          <div className="w-full max-w-lg space-y-5 rounded-t-2xl bg-surface p-6 sm:rounded-2xl">
-            <h2 className="text-lg font-bold">{t('dash.recordPayoutTitle')}</h2>
-            <Field label={t('dash.payoutAmountLabel')} hint={t('dash.payoutAmountHint')}>
-              <Input
-                type="number"
-                min={1}
-                inputMode="numeric"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </Field>
-            <p className="-mt-2 text-xs text-muted">
-              {t('dash.payoutClosesMonth')}
-            </p>
-            <div className="flex gap-3">
+          <div className="flex max-h-[85vh] max-h-[85dvh] w-full max-w-lg flex-col rounded-t-3xl bg-surface shadow-2xl sm:rounded-2xl">
+            {/* Header - Pinned */}
+            <div className="flex shrink-0 items-start justify-between border-b border-line/50 p-5 pb-4">
+              <h2 className="text-lg font-bold">{t('dash.recordPayoutTitle')}</h2>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label={t('common.close')}
+                className="rounded-full p-1.5 text-muted hover:bg-sunken hover:text-ink"
+              >
+                <X size={20} weight="bold" />
+              </button>
+            </div>
+
+            {/* Body - Scrollable */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-5 space-y-4">
+              <Field label={t('dash.payoutAmountLabel')} hint={t('dash.payoutAmountHint')}>
+                <Input
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </Field>
+              <p className="text-xs text-muted">
+                {t('dash.payoutClosesMonth')}
+              </p>
+            </div>
+
+            {/* Footer - Pinned Buttons */}
+            <div className="flex shrink-0 gap-3 border-t border-line/50 p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-5">
               <Button variant="secondary" onClick={() => setOpen(false)} className="flex-1">
                 {t('common.cancel')}
               </Button>
@@ -736,6 +785,8 @@ function SelectionSection({
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [winner, setWinner] = useState<BoardEntry | null>(null)
   const [busy, setBusy] = useState(false)
+
+  useBodyLock(Boolean(winner))
 
   const memberById = new Map(members.map(({ id, data }) => [id, data]))
 
@@ -883,21 +934,23 @@ function SelectionSection({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-10 flex items-end bg-black/40 sm:items-center sm:justify-center"
+          className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
           onClick={(e) => e.target === e.currentTarget && setWinner(null)}
         >
-          <div className="w-full max-w-lg rounded-t-2xl bg-surface p-6 text-center sm:rounded-2xl">
-            <Trophy size={28} className="mx-auto text-accent-strong dark:text-accent" weight="fill" />
-            <h2 className="mt-3 text-lg font-bold">{winner.name}</h2>
-            <p className="mt-1 text-sm text-muted">
-              {t('dash.winnerReceives', {
-                amount: formatMinor(
-                  group.monthlyAmountMinor * Math.max(group.memberCount, 1),
-                  group.currency,
-                ),
-              })}
-            </p>
-            <div className="mt-5 flex gap-3">
+          <div className="flex max-h-[85vh] max-h-[85dvh] w-full max-w-lg flex-col rounded-t-3xl bg-surface shadow-2xl sm:rounded-2xl text-center">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-3">
+              <Trophy size={36} className="mx-auto text-accent-strong dark:text-accent" weight="fill" />
+              <h2 className="text-xl font-bold">{winner.name}</h2>
+              <p className="text-sm text-muted">
+                {t('dash.winnerReceives', {
+                  amount: formatMinor(
+                    group.monthlyAmountMinor * Math.max(group.memberCount, 1),
+                    group.currency,
+                  ),
+                })}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-3 border-t border-line/50 p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-5">
               <Button variant="secondary" onClick={() => setWinner(null)} className="flex-1">
                 {t('common.cancel')}
               </Button>
@@ -928,6 +981,8 @@ function AddMemberSection({
   const [invite, setInvite] = useState<{ name: string; phone: string; password: string } | null>(
     null,
   )
+
+  useBodyLock(!!invite)
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault()
@@ -995,49 +1050,59 @@ function AddMemberSection({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-10 flex items-end bg-black/40 sm:items-center sm:justify-center"
+          className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
+          onClick={(e) => e.target === e.currentTarget && setInvite(null)}
         >
-          <div className="w-full max-w-lg rounded-t-2xl bg-surface p-6 sm:rounded-2xl">
-            <div className="flex items-start justify-between">
+          <div className="flex max-h-[85vh] max-h-[85dvh] w-full max-w-lg flex-col rounded-t-3xl bg-surface shadow-2xl sm:rounded-2xl">
+            {/* Header - Pinned */}
+            <div className="flex shrink-0 items-start justify-between border-b border-line/50 p-5 pb-4">
               <h2 className="text-lg font-bold">
                 {t('dash.memberAddedTitle', { name: invite.name })}
               </h2>
               <button
                 onClick={() => setInvite(null)}
                 aria-label={t('common.close')}
-                className="rounded-full p-1 text-muted hover:text-ink"
+                className="rounded-full p-1.5 text-muted hover:bg-sunken hover:text-ink"
               >
-                <X size={18} weight="bold" />
+                <X size={20} weight="bold" />
               </button>
             </div>
-            <p className="mt-1 text-sm text-muted">{t('dash.shareLoginDetails')}</p>
-            <div className="mt-4 rounded-2xl bg-sunken p-4 text-center">
-              <p className="text-[11px] uppercase tracking-wide text-faint">
-                {t('dash.passwordLabel')}
-              </p>
-              <p className="mt-1 font-mono text-2xl font-bold tracking-widest">{invite.password}</p>
+
+            {/* Body - Scrollable */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-5 space-y-4">
+              <p className="text-sm text-muted">{t('dash.shareLoginDetails')}</p>
+              <div className="rounded-2xl bg-sunken p-4 text-center">
+                <p className="text-[11px] uppercase tracking-wide text-faint">
+                  {t('dash.passwordLabel')}
+                </p>
+                <p className="mt-1 font-mono text-2xl font-bold tracking-widest">{invite.password}</p>
+              </div>
             </div>
-            <a
-              href={whatsappLink(
-                invite.phone,
-                t('dash.whatsappInviteText', {
-                  name: invite.name,
-                  password: invite.password,
-                }),
-              )}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] py-3 font-semibold text-[#06301b] transition-transform active:scale-[0.98]"
-            >
-              <WhatsappLogo size={20} weight="fill" />
-              {t('dash.sendViaWhatsapp')}
-            </a>
-            <button
-              onClick={() => setInvite(null)}
-              className="mt-3 w-full py-2 text-center text-sm text-muted underline-offset-2 hover:text-ink hover:underline"
-            >
-              {t('common.done')}
-            </button>
+
+            {/* Footer - Pinned Actions */}
+            <div className="shrink-0 space-y-2 border-t border-line/50 p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-5">
+              <a
+                href={whatsappLink(
+                  invite.phone,
+                  t('dash.whatsappInviteText', {
+                    name: invite.name,
+                    password: invite.password,
+                  }),
+                )}
+                target="_blank"
+                rel="noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] py-3 font-semibold text-[#06301b] transition-transform active:scale-[0.98]"
+              >
+                <WhatsappLogo size={20} weight="fill" />
+                {t('dash.sendViaWhatsapp')}
+              </a>
+              <button
+                onClick={() => setInvite(null)}
+                className="w-full py-2 text-center text-sm text-muted underline-offset-2 hover:text-ink hover:underline"
+              >
+                {t('common.done')}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -163,6 +163,6 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
 
     return { ok: true, poolAmountMinor }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'confirmSelection', uid: req.auth?.uid, data: req.data })
   }
 })

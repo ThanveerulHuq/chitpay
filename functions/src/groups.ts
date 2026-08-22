@@ -79,7 +79,7 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
     await db.doc(`users/${uid}/groupAccess/${ref.id}`).set({ membershipIds: [] })
     return { groupId: ref.id }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'createGroup', uid: req.auth?.uid, data: req.data })
   }
 })
 
@@ -189,6 +189,6 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       isNewUser,
     }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'addMember', uid: req.auth?.uid, data: req.data })
   }
 })

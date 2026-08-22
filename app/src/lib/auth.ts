@@ -86,21 +86,10 @@ async function syncRoles(): Promise<void> {
   }
 }
 
-// TEMPORARY DEV BYPASS — phones that skip password checks. Remove before production.
-const DEV_BYPASS_PHONES = ['919600642802']
-
 export async function signInWithPassword(
   phone: string,
   password: string,
 ): Promise<void> {
-  const normalized = normalizePhone(phone)
-  if (DEV_BYPASS_PHONES.includes(normalized)) {
-    const call = httpsCallable<{ phone: string }, { token: string }>(functions, 'devLogin')
-    const res = await call({ phone: normalized })
-    await signInWithCustomToken(auth, res.data.token)
-    await syncRoles()
-    return
-  }
   await signInWithEmailAndPassword(auth, syntheticEmail(phone), password)
   await syncRoles()
 }

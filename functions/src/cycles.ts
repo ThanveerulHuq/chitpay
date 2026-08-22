@@ -145,7 +145,7 @@ export const startNextCycle = onCall({ region: 'asia-south1', invoker: 'public' 
 
     return { ok: true }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'startNextCycle', uid: req.auth?.uid, data: req.data })
   }
 })
 
@@ -153,6 +153,7 @@ interface MarkPaidInput {
   groupId: string
   membershipId: string
   method: PaymentMethod
+  cycleNumber?: number
   referenceNo?: string
   note?: string
 }
@@ -177,7 +178,7 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
       if (!groupSnap.exists || !group) throw new AppError('not_found')
       assertAdminAccess(req.auth, group)
 
-      const n = group.currentCycleNumber
+      const n = input.cycleNumber ?? group.currentCycleNumber
       if (!n || n < 1) {
         throw new AppError('invalid_transition', 'No month is open yet.')
       }
@@ -186,10 +187,10 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
       const cycleSnap = await tx.get(cycleRef)
       const cycle = cycleSnap.data() as CycleDoc | undefined
       if (!cycleSnap.exists || !cycle) throw new AppError('not_found')
-      if (cycle.status !== 'payment_open') {
+      if (cycle.status === 'upcoming') {
         throw new AppError(
           'invalid_transition',
-          'Payments can only be recorded while the month is open.',
+          'Payments cannot be recorded before the month starts.',
         )
       }
 
@@ -207,6 +208,10 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
         return
       }
 
+      const boardRef = cycleRef.collection('board').doc('board')
+      const boardSnap = await tx.get(boardRef)
+      const board = boardSnap.data() as BoardDoc | undefined
+
       const now = FieldValue.serverTimestamp() as unknown as number
       tx.set(paymentRef, {
         amountMinor: group.monthlyAmountMinor,
@@ -218,9 +223,6 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
         recordedBy: uid,
       } satisfies PaymentDoc)
 
-      const boardRef = cycleRef.collection('board').doc('board')
-      const boardSnap = await tx.get(boardRef)
-      const board = boardSnap.data() as BoardDoc | undefined
       if (board) {
         const entries = board.entries.map((e) =>
           e.membershipId === input.membershipId
@@ -230,21 +232,24 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
         tx.set(boardRef, { entries })
       }
 
-      tx.update(groupRef, {
-        paidCount: FieldValue.increment(1),
-        collectedAmountMinor: FieldValue.increment(group.monthlyAmountMinor),
-      })
+      // Only increment current cycle counts on group doc if paying for the current cycle
+      if (n === group.currentCycleNumber) {
+        tx.update(groupRef, {
+          paidCount: FieldValue.increment(1),
+          collectedAmountMinor: FieldValue.increment(group.monthlyAmountMinor),
+        })
 
-      tx.set(
-        db.doc(`users/${member.uid}/memberships/${input.membershipId}`),
-        { myPaymentStatus: 'paid' },
-        { merge: true },
-      )
+        tx.set(
+          db.doc(`users/${member.uid}/memberships/${input.membershipId}`),
+          { myPaymentStatus: 'paid' },
+          { merge: true },
+        )
+      }
     })
 
     return { ok: true, alreadyPaid }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'markPaid', uid: req.auth?.uid, data: req.data })
   }
 })
 
@@ -333,6 +338,6 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
 
     return { sent, total: targets.length, overdue }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'sendReminder', uid: req.auth?.uid, data: req.data })
   }
 })

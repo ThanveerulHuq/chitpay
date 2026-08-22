@@ -85,7 +85,7 @@ export const requestOtp = onCall({ region: 'asia-south1', invoker: 'public' }, a
     await messaging.sendTemplate(phone, 'login_code', { OTP_NUMBER: code }, 'en')
     return { sent: true }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'requestOtp', uid: req.auth?.uid, data: req.data })
   }
 })
 
@@ -126,7 +126,7 @@ export const requestLoginLink = onCall({ region: 'asia-south1', invoker: 'public
     )
     return { sent: true }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'requestLoginLink', uid: req.auth?.uid, data: req.data })
   }
 })
 
@@ -150,28 +150,10 @@ export const syncClaims = onCall({ region: 'asia-south1', invoker: 'public' }, a
     )
     return { roles: desired }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'syncClaims', uid: req.auth?.uid })
   }
 })
 
-/**
- * TEMPORARY DEV BYPASS — passwordless login for listed phones.
- * TODO: remove before production. Anyone knowing the phone number gets in.
- */
-const DEV_BYPASS_PHONES = ['919600642802']
-
-export const devLogin = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
-  try {
-    const phone = normalizePhone(String(req.data?.phone ?? ''))
-    if (!DEV_BYPASS_PHONES.includes(phone)) throw new AppError('permission_denied')
-    const { uid } = await ensureUser(phone)
-    await auth.setCustomUserClaims(uid, { roles: rolesForPhone(phone) })
-    const token = await auth.createCustomToken(uid)
-    return { token }
-  } catch (err) {
-    throw toHttpsError(err)
-  }
-})
 
 export const verifyOtp = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
   try {
@@ -209,6 +191,6 @@ export const verifyOtp = onCall({ region: 'asia-south1', invoker: 'public' }, as
     const token = await auth.createCustomToken(uid)
     return { token }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'verifyOtp', uid: req.auth?.uid, data: req.data })
   }
 })

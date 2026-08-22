@@ -70,6 +70,6 @@ export const recordPayout = onCall({ region: 'asia-south1', invoker: 'public' },
 
     return { ok: true, completedGroup }
   } catch (err) {
-    throw toHttpsError(err)
+    throw toHttpsError(err, { fn: 'recordPayout', uid: req.auth?.uid, data: req.data })
   }
 })

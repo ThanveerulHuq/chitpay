@@ -14,10 +14,7 @@ export default function BottomNav() {
   if (location.pathname === '/login') return null
 
   return (
-    <>
-      {/* Spacer so content isn't hidden behind the bottom bar */}
-      <div className="h-16" />
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-line bg-surface/90 backdrop-blur pb-safe">
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-line bg-surface/90 backdrop-blur pb-[env(safe-area-inset-bottom)]">
         <div className="flex h-16 max-w-md mx-auto">
           <button
             onClick={() => setViewMode('admin')}
@@ -43,6 +40,5 @@ export default function BottomNav() {
           </button>
         </div>
       </div>
-    </>
   )
 }
