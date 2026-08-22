@@ -148,6 +148,14 @@ export default function GroupDashboardPage() {
         onChanged={reload}
       />
 
+      <a
+        href={`/groups/${groupId}/payments`}
+        className="mt-4 flex items-center justify-between rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-semibold hover:bg-sunken"
+      >
+        {t('dash.allPayments')}
+        <span aria-hidden className="text-faint">›</span>
+      </a>
+
       <HistorySection cycles={cycles} members={members} currency={g.currency} />
 
       {/* Roster */}

@@ -4,6 +4,7 @@ import LoginLinkPage from '@/pages/LoginLinkPage'
 import GroupsListPage from '@/pages/admin/GroupsListPage'
 import CreateGroupPage from '@/pages/admin/CreateGroupPage'
 import GroupDashboardPage from '@/pages/admin/GroupDashboardPage'
+import GroupPaymentsPage from '@/pages/admin/GroupPaymentsPage'
 import SettingsPage from '@/pages/SettingsPage'
 import OfflineBanner from '@/components/OfflineBanner'
 import InstallPrompt from '@/components/InstallPrompt'
@@ -57,6 +58,14 @@ export default function App() {
           element={
             <RequireAuth>
               <GroupDashboardPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/groups/:groupId/payments"
+          element={
+            <RequireAuth>
+              <GroupPaymentsPage />
             </RequireAuth>
           }
         />
