@@ -120,6 +120,8 @@ export interface SelectionAuditDoc {
 
 export type MessageTemplate =
   | 'login_code'
+  | 'login_link'
+  | 'login_access'
   | 'member_invite'
   | 'payment_reminder'
   | 'overdue_reminder'

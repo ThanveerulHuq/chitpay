@@ -34,7 +34,7 @@ ChitPay replaces scattered WhatsApp messages, spreadsheets, notebooks, and manua
 - Tailwind CSS and Phosphor Icons
 - Firebase Authentication, Firestore, Cloud Functions, and Hosting
 - Progressive Web App support for a mobile-first experience
-- Vitest and Firebase Emulator Suite tests
+- Vitest unit tests
 
 ## Getting started
 
@@ -42,7 +42,6 @@ ChitPay replaces scattered WhatsApp messages, spreadsheets, notebooks, and manua
 
 - Node.js 22
 - npm
-- Java, when running the Firestore emulator tests
 
 Install the workspace dependencies:
 
@@ -58,7 +57,9 @@ Start the web application:
 npm run dev
 ```
 
-The Vite development server will print the local URL in your terminal.
+The Vite development server will print the local URL in your terminal. In local
+development the app connects directly to the deployed Firebase project using
+the config in `app/.env` (see `app/.env.production` for the shape of it).
 
 ## Useful commands
 
@@ -71,14 +72,20 @@ npm run build
 
 # Run shared unit tests
 npm run test:shared
-
-# Install rules-test dependencies and run Firestore rules tests
-npm ci --prefix tests/rules
-npm run test:rules
-
-# Start the local Firebase emulators
-npm run emulators
 ```
+
+## Kwic WhatsApp configuration
+
+Functions send the approved `_en`/`_ta` templates through Kwic. Firebase loads
+the ignored `functions/.env` file when deploying Functions. Set the token under
+`KWIC_API_KEY` and never commit that file:
+
+```bash
+firebase deploy --only functions
+```
+
+The adapter uses `https://app.kwic.in/api/v1/api/v1/push` by default. Copy
+`functions/.env.example` to `functions/.env` to override any value.
 
 ## Repository structure
 
@@ -86,8 +93,6 @@ npm run emulators
 app/          React and Vite progressive web application
 functions/    Firebase Cloud Functions
 shared/       Shared domain types, validation, and utilities
-tests/e2e/    End-to-end acceptance tests
-tests/rules/  Firestore security rules tests
 docs/plans/   Product and implementation design notes
 ```
 

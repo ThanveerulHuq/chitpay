@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
-import { WhatsappLogo, X, Bell, Trophy, HandCoins } from '@phosphor-icons/react'
+import { useParams, useSearchParams } from 'react-router-dom'
+import {
+  WhatsappLogo,
+  X,
+  Bell,
+  Trophy,
+  HandCoins,
+  Money,
+  QrCode,
+  Bank,
+  DotsThreeOutline,
+} from '@phosphor-icons/react'
 import {
   callAddMember,
   callMarkPaid,
@@ -34,10 +44,16 @@ import {
 import { useI18n, useT } from '@/i18n'
 import LanguageToggle from '@/components/LanguageToggle'
 
+import { useAuth } from '@/lib/useAuth'
+import { useViewMode } from '@/lib/useViewMode'
+
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
 export default function GroupDashboardPage() {
   const { groupId = '' } = useParams()
+  const [searchParams] = useSearchParams()
+  const { isAdmin } = useAuth()
+  const { viewMode } = useViewMode()
   const { t } = useI18n()
   const [group, setGroup] = useState<{ id: string; data: GroupDoc } | null>(null)
   const [members, setMembers] = useState<{ id: string; data: GroupMemberDoc }[]>([])
@@ -103,8 +119,9 @@ export default function GroupDashboardPage() {
     )
   }
 
-  // Members get a read-only view; admins get the management dashboard.
-  if (group.data.adminUid !== auth.currentUser?.uid) {
+  // Members get a read-only view; admins get the management dashboard unless view=member is explicitly requested
+  const forceMemberView = searchParams.get('view') === 'member' || (isAdmin && viewMode === 'member')
+  if (forceMemberView || (group.data.adminUid !== auth.currentUser?.uid && !isAdmin)) {
     return <MemberGroupView groupId={groupId} />
   }
 
@@ -325,9 +342,16 @@ function CycleSection({
                 <span className="truncate text-sm font-medium">{entry.name}</span>
                 {entry.status === 'paid' ? (
                   <Chip tone="paid">
-                    {entry.method
-                      ? t('dash.paidWithMethod', { method: methodLabel(entry.method, t) })
-                      : t('status.paid')}
+                    <span className="inline-flex items-center gap-1.5">
+                      {entry.method && (
+                        <PaymentMethodIcon method={entry.method} size={13} weight="bold" />
+                      )}
+                      <span>
+                        {entry.method
+                          ? t('dash.paidWithMethod', { method: methodLabel(entry.method, t) })
+                          : t('status.paid')}
+                      </span>
+                    </span>
                   </Chip>
                 ) : (
                   <span className="flex items-center gap-2">
@@ -369,6 +393,29 @@ function CycleSection({
       />
     </section>
   )
+}
+
+export function PaymentMethodIcon({
+  method,
+  size = 14,
+  weight = 'regular',
+  className = '',
+}: {
+  method: PaymentMethod
+  size?: number
+  weight?: 'regular' | 'bold' | 'fill'
+  className?: string
+}) {
+  switch (method) {
+    case 'cash':
+      return <Money size={size} weight={weight} className={className} />
+    case 'upi':
+      return <QrCode size={size} weight={weight} className={className} />
+    case 'bank_transfer':
+      return <Bank size={size} weight={weight} className={className} />
+    case 'other':
+      return <DotsThreeOutline size={size} weight={weight} className={className} />
+  }
 }
 
 function methodLabel(method: PaymentMethod, t: (key: any) => string): string {
@@ -423,11 +470,15 @@ function MarkPaidSheet({
     }
   }
 
-  const methodOptions: [PaymentMethod, string][] = [
-    ['cash', t('dash.methodCash')],
-    ['upi', t('dash.methodUpi')],
-    ['bank_transfer', t('dash.methodBank')],
-    ['other', t('dash.methodOther')],
+  const methodOptions: {
+    value: PaymentMethod
+    label: string
+    Icon: typeof Money
+  }[] = [
+    { value: 'cash', label: t('dash.methodCash'), Icon: Money },
+    { value: 'upi', label: t('dash.methodUpi'), Icon: QrCode },
+    { value: 'bank_transfer', label: t('dash.methodBank'), Icon: Bank },
+    { value: 'other', label: t('dash.methodOther'), Icon: DotsThreeOutline },
   ]
 
   return (
@@ -468,20 +519,21 @@ function MarkPaidSheet({
             aria-label={t('dash.paymentMethod')}
             className="mt-2 grid grid-cols-2 gap-2"
           >
-            {methodOptions.map(([value, label]) => (
+            {methodOptions.map(({ value, label, Icon }) => (
               <button
                 key={value}
                 type="button"
                 role="radio"
                 aria-checked={method === value}
                 onClick={() => setMethod(value)}
-                className={`rounded-2xl border px-3 py-3 text-sm font-medium transition-colors ${
+                className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-medium transition-colors ${
                   method === value
-                    ? 'border-accent bg-accent-soft text-accent-strong dark:border-accent dark:text-accent'
-                    : 'border-line bg-surface text-muted hover:bg-sunken'
+                    ? 'border-accent bg-accent-soft text-accent-strong dark:border-accent dark:text-accent font-semibold'
+                    : 'border-line bg-surface text-muted hover:bg-sunken hover:text-ink'
                 }`}
               >
-                {label}
+                <Icon size={18} weight={method === value ? 'bold' : 'regular'} />
+                <span>{label}</span>
               </button>
             ))}
           </div>

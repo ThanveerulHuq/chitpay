@@ -9,14 +9,17 @@ import { Chip, Page, Skeleton, Button } from '@/components/ui'
 import { useT } from '@/i18n'
 import LanguageToggle from '@/components/LanguageToggle'
 
+import { useViewMode } from '@/lib/useViewMode'
+
 type ListEntry =
   | { kind: 'admin'; id: string; name: string; amountMinor: number; currency: string; memberCount: number; cycleNumber: number; durationMonths: number }
   | { kind: 'member'; id: string; name: string; amountMinor: number; currency: string; myStatus: MembershipMirrorDoc['myPaymentStatus'] }
 
 export default function GroupsListPage() {
   const t = useT()
-  const { logout } = useAuth()
-  const [entries, setEntries] = useState<ListEntry[]>([])
+  const { logout, isAdmin } = useAuth()
+  const { viewMode } = useViewMode()
+  const [allEntries, setAllEntries] = useState<ListEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -38,9 +41,7 @@ export default function GroupsListPage() {
         cycleNumber: g.currentCycleNumber,
         durationMonths: g.durationMonths,
       }))
-      const adminIds = new Set(adminGroups.map((g) => g.id))
       const memberEntries: ListEntry[] = memberships
-        .filter((m) => !adminIds.has(m.data.groupId))
         .map((m) => ({
           kind: 'member',
           id: m.data.groupId,
@@ -50,7 +51,7 @@ export default function GroupsListPage() {
           myStatus: m.data.myPaymentStatus,
         }))
 
-      setEntries([...adminEntries, ...memberEntries])
+      setAllEntries([...adminEntries, ...memberEntries])
       setLoading(false)
     })()
     return () => {
@@ -58,10 +59,19 @@ export default function GroupsListPage() {
     }
   }, [])
 
+  const entries = allEntries.filter((e) => isAdmin ? e.kind === viewMode : e.kind === 'member')
+
   return (
     <Page>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">{t('groups.title')}</h1>
+        <div className="flex items-center gap-2.5">
+          <img
+            src="/brand/chitpay-app-icon-hands.png"
+            alt=""
+            className="size-8 rounded-xl object-contain shadow-xs"
+          />
+          <h1 className="text-2xl font-bold tracking-tight">ChitPay</h1>
+        </div>
         <div className="flex items-center gap-2">
           <LanguageToggle />
           <button
@@ -71,13 +81,15 @@ export default function GroupsListPage() {
           >
             <SignOut size={18} />
           </button>
-          <Link
-            to="/groups/new"
-            className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent transition-transform active:scale-[0.98]"
-          >
-            <Plus size={16} weight="bold" />
-            {t('groups.newGroup')}
-          </Link>
+          {(!isAdmin || viewMode === 'admin') && (
+            <Link
+              to="/groups/new"
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent transition-transform active:scale-[0.98]"
+            >
+              <Plus size={16} weight="bold" />
+              {t('groups.newGroup')}
+            </Link>
+          )}
         </div>
       </div>
 
@@ -98,9 +110,11 @@ export default function GroupsListPage() {
           <p className="mt-1 max-w-[28ch] text-sm text-muted">
             {t('groups.emptyDesc')}
           </p>
-          <Link to="/groups/new" className="mt-5">
-            <Button>{t('groups.createFirst')}</Button>
-          </Link>
+          {(!isAdmin || viewMode === 'admin') && (
+            <Link to="/groups/new" className="mt-5">
+              <Button>{t('groups.createFirst')}</Button>
+            </Link>
+          )}
         </div>
       )}
 
@@ -108,9 +122,9 @@ export default function GroupsListPage() {
 
       <ul className="space-y-3">
         {entries.map((entry) => (
-          <li key={entry.id}>
+          <li key={`${entry.kind}-${entry.id}`}>
             <Link
-              to={`/groups/${entry.id}`}
+              to={`/groups/${entry.id}${entry.kind === 'member' ? '?view=member' : ''}`}
               className="block rounded-2xl border border-line bg-surface p-4 transition-colors hover:bg-sunken active:scale-[0.99] motion-safe:transition-transform"
             >
               <div className="flex items-baseline justify-between gap-3">

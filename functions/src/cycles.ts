@@ -3,7 +3,7 @@ import { onCall } from 'firebase-functions/v2/https'
 import { FieldValue } from 'firebase-admin/firestore'
 import {
   AppError,
-  renderMessage,
+  formatMinor,
 } from '@chitapp/shared'
 import type {
   BoardDoc,
@@ -17,6 +17,7 @@ import type {
   UserDoc,
 } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
+import { assertAdminAccess } from './auth.js'
 import { messaging } from './messaging.js'
 
 
@@ -37,14 +38,6 @@ export function addMonthsClamped(iso: string, months: number): string {
   return anchor.toISOString().slice(0, 10)
 }
 
-async function assertAdminOf(uid: string, groupId: string): Promise<GroupDoc> {
-  const snap = await db.doc(`groups/${groupId}`).get()
-  const data = snap.data() as GroupDoc | undefined
-  if (!snap.exists || !data) throw new AppError('not_found')
-  if (data.adminUid !== uid) throw new AppError('permission_denied')
-  return data
-}
-
 interface StartNextCycleInput {
   groupId: string
 }
@@ -60,7 +53,7 @@ export const startNextCycle = onCall({ region: 'asia-south1', invoker: 'public' 
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      if (group.adminUid !== uid) throw new AppError('permission_denied')
+      assertAdminAccess(req.auth, group)
       if (group.status !== 'active') {
         throw new AppError('invalid_transition', 'This group is not active.')
       }
@@ -182,7 +175,7 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      if (group.adminUid !== uid) throw new AppError('permission_denied')
+      assertAdminAccess(req.auth, group)
 
       const n = group.currentCycleNumber
       if (!n || n < 1) {
@@ -270,7 +263,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
     const groupSnap = await groupRef.get()
     const group = groupSnap.data() as GroupDoc | undefined
     if (!groupSnap.exists || !group) throw new AppError('not_found')
-    if (group.adminUid !== uid) throw new AppError('permission_denied')
+    assertAdminAccess(req.auth, group)
 
     const n = group.currentCycleNumber
     if (!n || n < 1) {
@@ -306,22 +299,17 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
       const user = userSnap.data() as UserDoc | undefined
       if (!user?.phone) continue
 
-      const body = renderMessage(
-        template,
-        {
-          memberName: member.displayName,
-          groupName: group.name,
-          amountMinor: group.monthlyAmountMinor,
-          currency: group.currency,
-          dueDate: cycle.dueDate,
-        },
-        user.language ?? 'en',
-      )
-
       let error: string | null = null
       let providerMessageId: string | null = null
       try {
-        const res = await messaging.sendTemplate(user.phone, template, { body })
+        const language = user.language ?? 'en'
+        const res = await messaging.sendTemplate(user.phone, template, {
+          member_name: member.displayName,
+          group_name: group.name,
+          contribution_amount: formatMinor(group.monthlyAmountMinor, group.currency),
+          due_date: cycle.dueDate,
+          group_id: groupId,
+        }, language)
         providerMessageId = res.providerMessageId
         sent++
       } catch (e) {

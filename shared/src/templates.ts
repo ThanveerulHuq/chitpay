@@ -9,11 +9,13 @@ export interface TemplateVars {
   dueDate?: string
   poolAmountMinor?: number
   loginCode?: string
+  loginLinkId?: string
   appUrl?: string
 }
 
 export type TemplateId =
   | 'login_code'
+  | 'login_link'
   | 'member_invite'
   | 'payment_reminder'
   | 'overdue_reminder'
@@ -33,7 +35,9 @@ export function renderMessage(
   if (lang === 'ta') {
     switch (template) {
       case 'login_code':
-        return `உங்கள் ChitApp சரிபார்ப்புக் குறியீடு ${v.loginCode}. இது 5 நிமிடங்களில் காலாவதியாகிவிடும்.`
+        return `உங்கள் ChitApp உள்நுழைவு OTP: ${v.loginCode}. இது 5 நிமிடங்களில் காலாவதியாகிவிடும்.`
+      case 'login_link':
+        return `வணக்கம் ${v.memberName},\n\nஇதோ ChitPay-க்கான உங்கள் உள்நுழைவு இணைப்பு.\n\nஉங்கள் குழுவைப் பார்க்க கீழே உள்ள லிங்க்கை கிளிக் செய்யவும்.`
       case 'member_invite':
         return (
           `வணக்கம் ${v.memberName}! நீங்கள் ChitApp-ல் *${v.groupName}* குழுவில் சேர்க்கப்பட்டுள்ளீர்கள். ` +
@@ -43,23 +47,23 @@ export function renderMessage(
         return (
           `வணக்கம் ${v.memberName}, ${v.groupName} குழுவிற்கான உங்கள் மாத சந்தா தொகை ${amount}` +
           `${v.dueDate ? ` ${v.dueDate} அன்று` : ' இன்று'} செலுத்தப்பட வேண்டும். ` +
-          `தயவுசெய்து பணம் செலுத்தி உறுதிப்படுத்தவும்.`
+          `செலுத்தி உறுதிப்படுத்தவும்.`
         )
       case 'overdue_reminder':
         return (
           `வணக்கம் ${v.memberName}, ${v.groupName} குழுவிற்கான உங்கள் மாத சந்தா தொகை ${amount} ` +
-          `செலுத்த வேண்டிய காலக்கெடு முடிந்துவிட்டது (காலக்கெடு: ${v.dueDate}). தயவுசெய்து விரைவில் செலுத்தவும்.`
+          `செலுத்துவதற்கான கடைசி தேதி முடிந்துவிட்டது (கடைசி தேதி: ${v.dueDate}). தயவுசெய்து உடனடியாக செலுத்தவும்.`
         )
       case 'recipient_notification': {
         const pool = formatMinor(v.poolAmountMinor ?? v.amountMinor, v.currency)
         return (
           `வாழ்த்துகள் ${v.memberName}! ${v.groupName} குழுவில் இந்த மாதத்திற்கான ` +
-          `${pool} சீட்டு பெறுநராக நீங்கள் தேர்ந்தெடுக்கப்பட்டுள்ளீர்கள்.`
+          `${pool} சீட்டுத் தொகை உங்களுக்குக் கிடைத்துள்ளது.`
         )
       }
       case 'payout_confirmation':
         return (
-          `வணக்கம் ${v.memberName}, ${v.groupName} குழுவிற்கான உங்கள் தொகை ${amount} வழங்கப்பட்டது பதிவு செய்யப்பட்டுள்ளது.`
+          `வணக்கம் ${v.memberName}, ${v.groupName} குழுவிற்கான உங்கள் சீட்டுத் தொகை ${amount} வழங்கப்பட்டது பதிவு செய்யப்பட்டுள்ளது.`
         )
     }
   }
@@ -67,6 +71,8 @@ export function renderMessage(
   switch (template) {
     case 'login_code':
       return `Your ChitApp verification code is ${v.loginCode}. It expires in 5 minutes.`
+    case 'login_link':
+      return `Hi ${v.memberName}, here's your access link for Chitpay.\n\nTap the button below to see your group.`
     case 'member_invite':
       return (
         `Hi ${v.memberName}! You've been added to *${v.groupName}* on ChitApp. ` +

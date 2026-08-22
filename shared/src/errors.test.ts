@@ -22,9 +22,9 @@ describe('errors localization', () => {
   })
 
   it('returns Tamil message when requested', () => {
-    expect(userMessage('unauthenticated', 'ta')).toBe('தொடர தயவுசெய்து உள்நுழையவும்.')
+    expect(userMessage('unauthenticated', 'ta')).toBe('தொடர உள்நுழையவும்.')
     expect(userMessage('already_selected', 'ta')).toBe(
-      'இந்த மாதத்திற்கான பெறுநர் ஏற்கனவே தேர்ந்தெடுக்கப்பட்டுவிட்டார்.',
+      'இந்த மாதத்திற்கான வெற்றியாளர் ஏற்கனவே தேர்ந்தெடுக்கப்பட்டுவிட்டார்.',
     )
   })
 

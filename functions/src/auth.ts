@@ -3,6 +3,7 @@ import { onCall } from 'firebase-functions/v2/https'
 import { FieldValue } from 'firebase-admin/firestore'
 import {
   AppError,
+  type Lang,
   OTP_TTL_MS,
   normalizePhone,
 } from '@chitapp/shared'
@@ -11,9 +12,21 @@ import { messaging } from './messaging.js'
 import { assertOtpSendable, generateOtpCode, hashOtpCode, verifyOtpDoc } from './otp.js'
 
 
+import type { GroupDoc } from '@chitapp/shared'
+
+const LOGIN_LINK_SEND_COOLDOWN_MS = 60 * 1000
+
 /** Synthetic email used as the Firebase Auth identifier for phone-based users. */
 export function syntheticEmail(phone: string): string {
   return `${phone}@phone.chitapp.app`
+}
+
+export function assertAdminAccess(auth: any, group: GroupDoc | { adminUid: string }) {
+  if (!auth) throw new AppError('unauthenticated')
+  const isAdminRole = Array.isArray(auth.token?.roles) && auth.token.roles.includes('admin')
+  if (group.adminUid !== auth.uid && !isAdminRole) {
+    throw new AppError('permission_denied')
+  }
 }
 
 /** Admin phones (comma-separated env var) get the admin role at first login. */
@@ -69,7 +82,48 @@ export const requestOtp = onCall({ region: 'asia-south1', invoker: 'public' }, a
       lastSentAt: now,
     })
 
-    await messaging.sendTemplate(phone, 'login_code', { code })
+    await messaging.sendTemplate(phone, 'login_code', { OTP_NUMBER: code }, 'en')
+    return { sent: true }
+  } catch (err) {
+    throw toHttpsError(err)
+  }
+})
+
+export const requestLoginLink = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const phone = normalizePhone(String(req.data?.phone ?? ''))
+    const language: Lang = req.data?.language === 'ta' ? 'ta' : 'en'
+    const now = Date.now()
+    const { uid } = await ensureUser(phone)
+    const userRef = db.doc(`users/${uid}`)
+    const userSnap = await userRef.get()
+    const profile = userSnap.data() as { name?: unknown } | undefined
+    const fallbackName = language === 'ta' ? 'உறுப்பினரே' : 'there'
+    const name = typeof profile?.name === 'string' && profile.name.trim()
+      ? profile.name.trim()
+      : fallbackName
+
+    const sendRef = db.doc(`loginLinkRequests/${phone}`)
+    await db.runTransaction(async (transaction) => {
+      const sendSnap = await transaction.get(sendRef)
+      const lastSentAt = Number(sendSnap.data()?.lastSentAt ?? 0)
+      if (lastSentAt && now - lastSentAt < LOGIN_LINK_SEND_COOLDOWN_MS) {
+        throw new AppError('rate_limited')
+      }
+      transaction.set(sendRef, { lastSentAt: now })
+    })
+
+    const firebaseLink = await auth.generateSignInWithEmailLink(syntheticEmail(phone), {
+      url: 'https://chitpay.web.app/login/link',
+      handleCodeInApp: true,
+    })
+    const loginLinkId = Buffer.from(firebaseLink, 'utf8').toString('base64url')
+    await messaging.sendTemplate(
+      phone,
+      'login_access',
+      { name, id: loginLinkId },
+      language,
+    )
     return { sent: true }
   } catch (err) {
     throw toHttpsError(err)

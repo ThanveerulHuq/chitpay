@@ -12,6 +12,7 @@ import type { BoardEntry, CycleDoc, GroupDoc } from '@shared'
 import { Chip, Page, PageHeader, Skeleton } from '@/components/ui'
 import { useT } from '@/i18n'
 import LanguageToggle from '@/components/LanguageToggle'
+import { PaymentMethodIcon } from '@/pages/admin/GroupDashboardPage'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
@@ -138,7 +139,16 @@ export default function MemberGroupView({ groupId }: { groupId: string }) {
               <li key={entry.membershipId} className="flex items-center justify-between py-3">
                 <span className="truncate text-sm font-medium">{entry.name}</span>
                 <Chip tone={entry.status === 'paid' ? 'paid' : 'pending'}>
-                  {entry.status === 'paid' ? t('status.paid') : t('status.pending')}
+                  {entry.status === 'paid' ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      {entry.method && (
+                        <PaymentMethodIcon method={entry.method} size={13} weight="bold" />
+                      )}
+                      <span>{t('status.paid')}</span>
+                    </span>
+                  ) : (
+                    t('status.pending')
+                  )}
                 </Chip>
               </li>
             ))}

@@ -7,8 +7,6 @@
     "build": "npm run build --prefix shared && npm run build --prefix functions && npm run build --prefix app",
     "typecheck": "npm run typecheck --prefix shared && npm run build --prefix functions && npm run build --prefix app",
     "test:shared": "npm test --prefix shared",
-    "test:rules": "npm test --prefix tests/rules",
-    "emulators": "firebase emulators:start --only auth,firestore,functions",
     "deploy:hosting": "npm run build && firebase deploy --only hosting"
   }
 }

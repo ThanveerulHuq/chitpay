@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import LoginPage from '@/pages/LoginPage'
+import LoginLinkPage from '@/pages/LoginLinkPage'
 import GroupsListPage from '@/pages/admin/GroupsListPage'
 import CreateGroupPage from '@/pages/admin/CreateGroupPage'
 import GroupDashboardPage from '@/pages/admin/GroupDashboardPage'
@@ -21,12 +22,17 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+import { ViewModeProvider } from '@/lib/useViewMode'
+import BottomNav from '@/components/BottomNav'
+
 export default function App() {
   return (
-    <>
+    <ViewModeProvider>
       <OfflineBanner />
+      <BottomNav />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/login/link/:id" element={<LoginLinkPage />} />
         <Route
           path="/groups"
           element={
@@ -54,6 +60,6 @@ export default function App() {
         <Route path="/" element={<Navigate to="/groups" replace />} />
         <Route path="*" element={<Navigate to="/groups" replace />} />
       </Routes>
-    </>
+    </ViewModeProvider>
   )
 }

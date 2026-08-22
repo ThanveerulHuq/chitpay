@@ -8,7 +8,7 @@ import {
 } from '@chitapp/shared'
 import type { GroupDoc } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
-import { syntheticEmail } from './auth.js'
+import { syntheticEmail, assertAdminAccess } from './auth.js'
 
 
 interface CreateGroupInput {
@@ -22,14 +22,15 @@ interface CreateGroupInput {
   requirePaidToWin: boolean
 }
 
-function assertAdminOf(uid: string, groupId: string): Promise<GroupDoc> {
+
+function assertAdminOf(authObj: any, groupId: string): Promise<GroupDoc> {
   return db
     .doc(`groups/${groupId}`)
     .get()
     .then((snap) => {
       const data = snap.data() as GroupDoc | undefined
       if (!snap.exists || !data) throw new AppError('not_found')
-      if (data.adminUid !== uid) throw new AppError('permission_denied')
+      assertAdminAccess(authObj, data)
       return data
     })
 }
@@ -95,7 +96,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
     if (!adminUid) throw new AppError('unauthenticated')
     const input = req.data as AddMemberInput
 
-    const group = await assertAdminOf(adminUid, String(input.groupId ?? ''))
+    const group = await assertAdminOf(req.auth, String(input.groupId ?? ''))
     const name = String(input.name ?? '').trim()
     const phone = normalizePhone(String(input.phone ?? ''))
     if (!name) throw new AppError('invalid_argument', 'Member name is required.')

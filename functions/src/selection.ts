@@ -1,7 +1,7 @@
 import { db, auth } from './firebaseAdmin.js'
 import { onCall } from 'firebase-functions/v2/https'
 import { FieldValue } from 'firebase-admin/firestore'
-import { AppError, renderMessage } from '@chitapp/shared'
+import { AppError, formatMinor } from '@chitapp/shared'
 import type {
   CycleDoc,
   GroupDoc,
@@ -12,6 +12,7 @@ import type {
   UserDoc,
 } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
+import { assertAdminAccess } from './auth.js'
 import { messaging } from './messaging.js'
 
 
@@ -37,7 +38,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      if (group.adminUid !== uid) throw new AppError('permission_denied')
+      assertAdminAccess(req.auth, group)
 
       const n = group.currentCycleNumber
       if (!n || n < 1) throw new AppError('invalid_transition')
@@ -128,23 +129,16 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
       const userSnap = await db.doc(`users/${notifiedUid}`).get()
       const user = userSnap.data() as UserDoc | undefined
       if (user?.phone) {
-        const body = renderMessage(
-          'recipient_notification',
-          {
-            memberName: notifiedName,
-            groupName,
-            amountMinor: poolAmountMinor,
-            currency,
-            poolAmountMinor,
-          },
-          user.language ?? 'en',
-        )
         let error: string | null = null
         let providerMessageId: string | null = null
         try {
+          const language = user.language ?? 'en'
           const res = await messaging.sendTemplate(user.phone, 'recipient_notification', {
-            body,
-          })
+            member_name: notifiedName,
+            group_name: groupName,
+            payout_amount: formatMinor(poolAmountMinor, currency),
+            group_id: groupId,
+          }, language)
           providerMessageId = res.providerMessageId
         } catch (e) {
           error = e instanceof Error ? e.message : String(e)
