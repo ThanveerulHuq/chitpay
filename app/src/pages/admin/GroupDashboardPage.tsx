@@ -415,7 +415,7 @@ export function PaymentMethodIcon({
   }
 }
 
-function methodLabel(method: PaymentMethod, t: (key: any) => string): string {
+export function methodLabel(method: PaymentMethod, t: (key: any) => string): string {
   switch (method) {
     case 'cash':
       return t('dash.methodCash')
