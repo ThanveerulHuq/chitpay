@@ -24,7 +24,7 @@ export const recordPayout = onCall({ region: 'asia-south1', invoker: 'public' },
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group, tx)
       assertGroupWritable(group)
 
       const n = Math.floor(Number(cycleNumber))
@@ -84,7 +84,7 @@ export const completeCycle = onCall({ region: 'asia-south1', invoker: 'public' }
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group, tx)
       assertGroupWritable(group)
 
       const n = Math.floor(Number(cycleNumber))

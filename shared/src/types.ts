@@ -149,6 +149,7 @@ export type MessageTemplate =
   | 'login_access'
   | 'member_invite'
   | 'payment_reminder'
+  | 'pending_payments_reminder'
   | 'recipient_notification'
   | 'payout_confirmation'
 
@@ -157,6 +158,7 @@ export type MessageStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed'
 export interface MessageLogDoc {
   groupId: string
   cycleNumber?: number
+  cycleNumbers?: number[]
   template: MessageTemplate
   toPhone: string
   membershipId: string | null

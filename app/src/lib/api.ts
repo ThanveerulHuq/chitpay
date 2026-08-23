@@ -120,6 +120,25 @@ export async function callSendReminder(input: {
   return res.data
 }
 
+export async function callSendMemberReminder(input: {
+  groupId: string
+  membershipId: string
+}): Promise<{
+  sent: number
+  pendingCycleCount: number
+  cycleNumbers: number[]
+  totalDueMinor: number
+}> {
+  const call = httpsCallable<typeof input, {
+    sent: number
+    pendingCycleCount: number
+    cycleNumbers: number[]
+    totalDueMinor: number
+  }>(functions, 'sendMemberReminder')
+  const res = await call(input)
+  return res.data
+}
+
 export async function callEditPayment(input: {
   groupId: string
   cycleNumber: number
@@ -147,6 +166,7 @@ export async function callConfirmSelection(input: {
   groupId: string
   cycleNumber: number
   membershipId: string
+  willingMembershipIds: string[]
 }): Promise<{ ok: boolean; poolAmountMinor: number }> {
   const call = httpsCallable<typeof input, { ok: boolean; poolAmountMinor: number }>(
     functions,

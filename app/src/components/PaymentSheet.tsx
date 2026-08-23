@@ -4,7 +4,7 @@ import { callMarkPaid, fetchBoard } from '@/lib/api'
 import type { BoardEntry } from '@shared'
 import type { GroupDoc, PaymentMethod } from '@shared'
 import { formatMinor, userMessage } from '@shared'
-import { Button, ErrorNote, Field, Input, Textarea } from '@/components/ui'
+import { Button, Dropdown, ErrorNote, Field, Input, Textarea } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { PaymentMethodIcon, methodLabel } from '@/pages/admin/GroupDashboardPage'
 import { useBodyLock } from '@/lib/useBodyLock'
@@ -13,18 +13,23 @@ export default function PaymentSheet({
   groupId,
   group,
   cycleNumber,
+  pendingCycleNumbers,
   fixedMembershipId,
   onClose,
   onDone,
 }: {
   groupId: string
   group: GroupDoc
-  cycleNumber: number
+  cycleNumber?: number
+  pendingCycleNumbers?: number[]
   fixedMembershipId?: string
   onClose: () => void
   onDone: () => void
 }) {
   const { t, lang } = useI18n()
+  const [selectedCycleNumber, setSelectedCycleNumber] = useState(
+    cycleNumber ?? pendingCycleNumbers?.[0] ?? 0,
+  )
   const [board, setBoard] = useState<BoardEntry[] | null>(null)
   const [selectedId, setSelectedId] = useState(fixedMembershipId ?? '')
   const [search, setSearch] = useState('')
@@ -37,22 +42,28 @@ export default function PaymentSheet({
 
   useEffect(() => {
     let cancelled = false
-    void fetchBoard(groupId, cycleNumber).then((next) => {
+    if (!selectedCycleNumber) return
+    void fetchBoard(groupId, selectedCycleNumber).then((next) => {
       if (cancelled) return
       const unpaid = (next ?? []).filter((entry) => entry.status === 'pending')
       setBoard(next ?? [])
-      if (!selectedId) setSelectedId(unpaid[0]?.membershipId ?? '')
+      setSelectedId((current) => current || unpaid[0]?.membershipId || '')
     })
     return () => {
       cancelled = true
     }
-  }, [groupId, cycleNumber, selectedId])
+  }, [groupId, selectedCycleNumber])
 
   const unpaid = useMemo(
     () => (board ?? []).filter((entry) => entry.status === 'pending' && entry.name.toLowerCase().includes(search.toLowerCase())),
     [board, search],
   )
   const selected = board?.find((entry) => entry.membershipId === selectedId) ?? null
+
+  function selectCycle(value: string) {
+    setBoard(null)
+    setSelectedCycleNumber(Number(value))
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -63,7 +74,7 @@ export default function PaymentSheet({
       await callMarkPaid({
         groupId,
         membershipId: selected.membershipId,
-        cycleNumber,
+        cycleNumber: selectedCycleNumber,
         method,
         referenceNo: referenceNo.trim() || undefined,
         note: note.trim() || undefined,
@@ -89,7 +100,7 @@ export default function PaymentSheet({
         <div className="flex shrink-0 items-start justify-between border-b border-line/60 p-5 pb-4">
           <div>
             <h2 className="text-lg font-bold">{t('workspace.recordPayment')}</h2>
-            <p className="text-sm text-muted">{t('workspace.cycleAmount', { amount: formatMinor(group.contributionAmountMinor, group.currency), cycle: cycleNumber })}</p>
+            <p className="text-sm text-muted">{t('workspace.cycleAmount', { amount: formatMinor(group.contributionAmountMinor, group.currency), cycle: selectedCycleNumber })}</p>
           </div>
           <button type="button" onClick={onClose} aria-label={t('common.close')} className="rounded-full p-1.5 text-muted hover:bg-sunken hover:text-ink">
             <X size={20} weight="bold" />
@@ -103,6 +114,18 @@ export default function PaymentSheet({
             <div className="rounded-2xl border border-dashed border-line p-6 text-center text-sm text-muted">{t('workspace.noMembers')}</div>
           ) : (
             <>
+              {pendingCycleNumbers && pendingCycleNumbers.length > 1 && (
+                <Field label={t('workspace.chooseCycle')}>
+                  <Dropdown
+                    value={String(selectedCycleNumber)}
+                    onChange={selectCycle}
+                    options={pendingCycleNumbers.map((pendingCycleNumber) => ({
+                      value: String(pendingCycleNumber),
+                      label: t('workspace.cycleNumber', { cycle: pendingCycleNumber }),
+                    }))}
+                  />
+                </Field>
+              )}
               {!fixedMembershipId && (
                 <Field label={t('workspace.chooseMember')}>
                   <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('workspace.searchMembers')} />

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Bank, DotsThreeOutline, HandCoins, Money, QrCode, Trophy, WhatsappLogo, X } from '@phosphor-icons/react'
+import { Bank, CaretRight, DotsThreeOutline, HandCoins, MagnifyingGlass, Money, QrCode, Trophy, WhatsappLogo, X } from '@phosphor-icons/react'
 import { callAddMember, callConfirmSelection, callRecordPayout } from '@/lib/api'
 import { whatsappLink } from '@/lib/whatsapp'
 import { formatMinor, toMinor } from '@shared'
@@ -37,15 +37,21 @@ function securePick<T>(items: T[]): T {
 
 export function SelectionSection({ groupId, group, cycle, board, members, onChanged, onError }: { groupId: string; group: GroupDoc; cycle: CycleDoc; board: BoardEntry[]; members: { id: string; data: GroupMemberDoc }[]; onChanged: () => void; onError: (message: string) => void }) {
   const { t } = useI18n()
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [search, setSearch] = useState('')
   const [winner, setWinner] = useState<BoardEntry | null>(null)
+  const [willingMembershipIds, setWillingMembershipIds] = useState<Set<string>>(() => new Set())
   const [busy, setBusy] = useState(false)
+  const [pickerError, setPickerError] = useState<string | null>(null)
   const memberById = new Map(members.map(({ id, data }) => [id, data]))
   const eligible = board.filter((entry) => {
     const member = memberById.get(entry.membershipId)
     return Boolean(member && member.status === 'active' && member.selectedInCycle == null && (!group.requirePaidToWin || entry.status === 'paid'))
   })
+  const willing = eligible.filter((entry) => willingMembershipIds.has(entry.membershipId))
+  const visibleEligible = eligible.filter((entry) => entry.name.toLowerCase().includes(search.trim().toLowerCase()))
   const poolAmountMinor = group.contributionAmountMinor * cycle.expectedPaymentCount
-  useBodyLock(Boolean(winner))
+  useBodyLock(pickerOpen)
   if (cycle.status !== 'active') return null
 
   if (cycle.recipientMembershipId) {
@@ -59,23 +65,83 @@ export function SelectionSection({ groupId, group, cycle, board, members, onChan
   async function confirmWinner() {
     if (!winner) return
     setBusy(true)
+    setPickerError(null)
     try {
-      await callConfirmSelection({ groupId, cycleNumber: cycle.cycleNumber, membershipId: winner.membershipId })
-      setWinner(null)
+      await callConfirmSelection({
+        groupId,
+        cycleNumber: cycle.cycleNumber,
+        membershipId: winner.membershipId,
+        willingMembershipIds: willing.map((entry) => entry.membershipId),
+      })
+      closePicker()
       onChanged()
     } catch (error) {
-      onError((error as Error).message)
+      setPickerError((error as Error).message)
       setWinner(null)
     } finally { setBusy(false) }
   }
 
+  function closePicker() {
+    setPickerOpen(false)
+    setSearch('')
+    setWinner(null)
+    setWillingMembershipIds(new Set())
+    setPickerError(null)
+  }
+
+  function toggleWilling(membershipId: string) {
+    setWillingMembershipIds((current) => {
+      const next = new Set(current)
+      if (next.has(membershipId)) next.delete(membershipId)
+      else next.add(membershipId)
+      return next
+    })
+  }
+
+  function chooseWinner() {
+    setPickerError(null)
+    if (willing.length === 1) setWinner(willing[0]!)
+    else if (willing.length > 1) setWinner(securePick(willing))
+  }
+
   return <>
-    <div className="mt-4 rounded-2xl border border-line bg-surface p-4 text-center">
-      <p className="font-semibold">{t('dash.pickRecipient')}</p>
-      <p className="mx-auto mt-1 max-w-[34ch] text-sm text-muted">{t('dash.eligibleMembersCount', { type: group.requirePaidToWin ? t('dash.eligiblePaid') : t('dash.eligibleAll'), count: eligible.length, pool: formatMinor(poolAmountMinor, group.currency) })}</p>
-      <Button onClick={() => eligible.length && setWinner(securePick(eligible))} disabled={eligible.length === 0} className="mt-4">{t('dash.pickRandomly')}</Button>
-    </div>
-    {winner && <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] flex items-end bg-black/40 sm:items-center sm:justify-center sm:p-4" onClick={(event) => event.target === event.currentTarget && setWinner(null)}><div className="w-full max-w-lg rounded-t-3xl bg-surface p-6 text-center sm:rounded-2xl"><Trophy size={36} weight="fill" className="mx-auto text-accent-strong dark:text-accent" /><h2 className="mt-3 text-xl font-bold">{winner.name}</h2><p className="mt-1 text-sm text-muted">{t('dash.winnerReceives', { amount: formatMinor(poolAmountMinor, group.currency) })}</p><div className="mt-6 flex gap-3"><Button variant="secondary" onClick={() => setWinner(null)} className="flex-1">{t('common.cancel')}</Button><Button onClick={() => void confirmWinner()} disabled={busy} className="flex-1">{busy ? t('common.confirming') : t('common.confirm')}</Button></div></div></div>}
+    <button type="button" onClick={() => setPickerOpen(true)} disabled={eligible.length === 0} className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:bg-sunken disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-strong dark:text-accent"><Trophy size={20} weight="fill" /></span>
+      <span className="min-w-0 flex-1"><span className="block font-semibold">{t('dash.pickRecipient')}</span><span className="block text-sm text-muted">{t('dash.eligibleCount', { count: eligible.length })}</span></span>
+      <CaretRight size={18} className="shrink-0 text-faint" />
+    </button>
+    {pickerOpen && <div role="dialog" aria-modal="true" aria-labelledby="recipient-picker-title" className="fixed inset-0 z-[60] flex items-end bg-black/40 sm:items-center sm:justify-center sm:p-4" onClick={(event) => event.target === event.currentTarget && closePicker()}>
+      <div className="flex max-h-[90dvh] w-full max-w-lg flex-col rounded-t-3xl bg-surface shadow-2xl sm:rounded-2xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-line/60 p-5 pb-4">
+          <h2 id="recipient-picker-title" className="text-lg font-bold">{winner ? t('workspace.winner') : t('dash.pickRecipient')}</h2>
+          <button type="button" onClick={closePicker} aria-label={t('common.close')} className="rounded-full p-1.5 text-muted hover:bg-sunken hover:text-ink"><X size={20} weight="bold" /></button>
+        </div>
+        {winner ? <div className="flex-1 overflow-y-auto p-6 text-center">
+          <Trophy size={42} weight="fill" className="mx-auto text-accent-strong dark:text-accent" />
+          <p className="mt-4 text-2xl font-bold">{winner.name}</p>
+          <p className="mt-1 text-sm text-muted">{formatMinor(poolAmountMinor, group.currency)}</p>
+          {pickerError && <div className="mt-4 text-left"><ErrorNote>{pickerError}</ErrorNote></div>}
+        </div> : <div className="flex-1 overflow-y-auto overscroll-contain p-5">
+          {pickerError && <div className="mb-4"><ErrorNote>{pickerError}</ErrorNote></div>}
+          <div className="relative">
+            <MagnifyingGlass size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+            <Input aria-label={t('workspace.searchMembers')} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('workspace.searchMembers')} className="mt-0 pl-10" />
+          </div>
+          <div className="mt-4 overflow-hidden rounded-2xl border border-line">
+            {visibleEligible.length === 0 ? <p className="p-5 text-center text-sm text-muted">{t('workspace.noMatchingMembers')}</p> : visibleEligible.map((entry) => {
+              const member = memberById.get(entry.membershipId)!
+              return <label key={entry.membershipId} className="flex cursor-pointer items-center gap-3 border-b border-line bg-surface px-4 py-3 last:border-0 hover:bg-sunken">
+                <input type="checkbox" checked={willingMembershipIds.has(entry.membershipId)} onChange={() => toggleWilling(entry.membershipId)} className="size-5 shrink-0 accent-accent" />
+                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{entry.name}</span><span className="block text-xs text-muted">{t('common.slot', { slotNo: member.slotNo })}</span></span>
+              </label>
+            })}
+          </div>
+        </div>}
+        <div className="shrink-0 border-t border-line/60 p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-5">
+          {winner ? <div className="flex gap-3"><Button variant="secondary" onClick={() => setWinner(null)} disabled={busy} className="flex-1">{t('common.back')}</Button><Button onClick={() => void confirmWinner()} disabled={busy} className="flex-1">{busy ? t('common.confirming') : t('common.confirm')}</Button></div> : <Button onClick={chooseWinner} disabled={willing.length === 0} className="w-full">{willing.length === 1 ? t('dash.announceWinner') : t('dash.pickRandomly')}</Button>}
+        </div>
+      </div>
+    </div>}
   </>
 }
 

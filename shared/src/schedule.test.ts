@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { addMonthsClamped, generateCycleSchedule } from './schedule.js'
+import { addMonthsClamped, generateCycleSchedule, isValidIsoDate } from './schedule.js'
+
+describe('isValidIsoDate', () => {
+  it('accepts real calendar dates in ISO format', () => {
+    expect(isValidIsoDate('2026-08-23')).toBe(true)
+    expect(isValidIsoDate('2024-02-29')).toBe(true)
+  })
+
+  it('rejects incomplete, malformed, and impossible dates', () => {
+    expect(isValidIsoDate('')).toBe(false)
+    expect(isValidIsoDate('2026-08')).toBe(false)
+    expect(isValidIsoDate('23/08/2026')).toBe(false)
+    expect(isValidIsoDate('2026-02-30')).toBe(false)
+  })
+})
 
 describe('generateCycleSchedule', () => {
   it('generates weekly dates', () => {

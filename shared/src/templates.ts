@@ -7,6 +7,7 @@ export interface TemplateVars {
   amountMinor: number
   currency: string
   poolAmountMinor?: number
+  pendingCycles?: number[]
   loginCode?: string
   loginLinkId?: string
   appUrl?: string
@@ -17,6 +18,7 @@ export type TemplateId =
   | 'login_link'
   | 'member_invite'
   | 'payment_reminder'
+  | 'pending_payments_reminder'
   | 'recipient_notification'
   | 'payout_confirmation'
 
@@ -46,6 +48,13 @@ export function renderMessage(
           `வணக்கம் ${v.memberName}, ${v.groupName} குழுவிற்கான உங்கள் சுற்று சந்தா தொகை ${amount}. ` +
           `தயவுசெய்து செலுத்தி உறுதிப்படுத்தவும்.`
         )
+      case 'pending_payments_reminder': {
+        const cycles = (v.pendingCycles ?? []).join(', ')
+        return (
+          `வணக்கம் ${v.memberName}, ${v.groupName} குழுவில் ${cycles} சுற்றுகளுக்கான ` +
+          `மொத்த நிலுவை ${amount}. தயவுசெய்து செலுத்தி உறுதிப்படுத்தவும்.`
+        )
+      }
       case 'recipient_notification': {
         const pool = formatMinor(v.poolAmountMinor ?? v.amountMinor, v.currency)
         return (
@@ -76,6 +85,13 @@ export function renderMessage(
         `${v.groupName} is pending. ` +
         `Please make the payment and share confirmation.`
       )
+    case 'pending_payments_reminder': {
+      const cycles = (v.pendingCycles ?? []).join(', ')
+      return (
+        `Hi ${v.memberName}, your total pending contribution for cycles ${cycles} ` +
+        `in ${v.groupName} is ${amount}. Please make the payment and share confirmation.`
+      )
+    }
     case 'recipient_notification': {
       const pool = formatMinor(v.poolAmountMinor ?? v.amountMinor, v.currency)
       return (

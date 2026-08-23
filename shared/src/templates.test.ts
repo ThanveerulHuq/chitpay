@@ -17,6 +17,17 @@ describe('message templates', () => {
       expect(msg).toContain('cycle contribution')
     })
 
+    it('renders one consolidated reminder for all pending cycles', () => {
+      const msg = renderMessage('pending_payments_reminder', {
+        ...vars,
+        amountMinor: 3000000,
+        pendingCycles: [1, 2, 3],
+      })
+      expect(msg).toContain('cycles 1, 2, 3')
+      expect(msg).toContain('₹30,000')
+      expect(msg).toContain('total pending')
+    })
+
     it('renders recipient notification with pool amount', () => {
       const msg = renderMessage('recipient_notification', { ...vars, poolAmountMinor: 20000000 })
       expect(msg).toContain('₹2,00,000')
@@ -77,6 +88,17 @@ describe('message templates', () => {
       expect(msg).toContain('Farhan')
       expect(msg).toContain('₹10,000')
       expect(msg).toContain('சுற்று சந்தா')
+    })
+
+    it('renders a consolidated payment reminder in Tamil', () => {
+      const msg = renderMessage('pending_payments_reminder', {
+        ...vars,
+        amountMinor: 3000000,
+        pendingCycles: [1, 2, 3],
+      }, 'ta')
+      expect(msg).toContain('1, 2, 3')
+      expect(msg).toContain('₹30,000')
+      expect(msg).toContain('மொத்த நிலுவை')
     })
 
     it('renders recipient notification in Tamil', () => {

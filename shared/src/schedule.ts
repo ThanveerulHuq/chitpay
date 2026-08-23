@@ -2,17 +2,20 @@ import type { CycleFrequency } from './types.js'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
-function parseIsoDate(iso: string): { year: number; month: number; day: number } {
-  if (!ISO_DATE.test(iso)) throw new Error('Invalid start date.')
+export function isValidIsoDate(iso: string): boolean {
+  if (!ISO_DATE.test(iso)) return false
   const [year, month, day] = iso.split('-').map(Number)
   const date = new Date(Date.UTC(year, month - 1, day))
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    throw new Error('Invalid start date.')
-  }
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  )
+}
+
+function parseIsoDate(iso: string): { year: number; month: number; day: number } {
+  if (!isValidIsoDate(iso)) throw new Error('Invalid start date.')
+  const [year, month, day] = iso.split('-').map(Number)
   return { year, month, day }
 }
 

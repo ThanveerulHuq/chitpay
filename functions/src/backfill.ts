@@ -21,7 +21,7 @@ export const backfillFinancialSummaries = onCall(
       const groupSnap = await groupRef.get()
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group)
       assertGroupWritable(group)
 
       const [membersSnap, cyclesSnap] = await Promise.all([

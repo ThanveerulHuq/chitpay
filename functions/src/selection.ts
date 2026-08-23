@@ -1,7 +1,12 @@
 import { db, auth } from './firebaseAdmin.js'
 import { onCall } from 'firebase-functions/v2/https'
 import { FieldValue } from 'firebase-admin/firestore'
-import { AppError, assertGroupWritable, formatMinor } from '@chitapp/shared'
+import {
+  AppError,
+  assertGroupWritable,
+  formatMinor,
+  validateSelectionParticipants,
+} from '@chitapp/shared'
 import type {
   CycleDoc,
   GroupDoc,
@@ -20,13 +25,20 @@ interface ConfirmSelectionInput {
   groupId: string
   cycleNumber: number
   membershipId: string
+  willingMembershipIds: string[]
 }
 
 export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
   try {
     const uid = req.auth?.uid
     if (!uid) throw new AppError('unauthenticated')
-    const { groupId, cycleNumber, membershipId } = req.data as ConfirmSelectionInput
+    const { groupId, cycleNumber, membershipId, willingMembershipIds } = req.data as ConfirmSelectionInput
+    if (
+      !Array.isArray(willingMembershipIds)
+      || willingMembershipIds.some((id) => typeof id !== 'string' || !id)
+    ) {
+      throw new AppError('invalid_argument')
+    }
 
     let poolAmountMinor = 0
     let notifiedName = ''
@@ -39,7 +51,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group, tx)
       assertGroupWritable(group)
 
       const n = Math.floor(Number(cycleNumber))
@@ -86,8 +98,16 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         }
         eligibleMembershipIds.push(m.id)
       }
-      if (!eligibleMembershipIds.includes(membershipId)) {
+      const participantError = validateSelectionParticipants(
+        membershipId,
+        willingMembershipIds,
+        eligibleMembershipIds,
+      )
+      if (participantError === 'ineligible_participant') {
         throw new AppError('not_eligible')
+      }
+      if (participantError) {
+        throw new AppError('invalid_argument')
       }
 
       poolAmountMinor = group.contributionAmountMinor * Math.max(cycle.expectedPaymentCount, 1)
@@ -111,8 +131,8 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         cycleNumber: n,
         selectedMembershipId: membershipId,
         selectedMemberName: member.displayName,
-        eligibleMembershipIds,
-        eligibleCount: eligibleMembershipIds.length,
+        eligibleMembershipIds: willingMembershipIds,
+        eligibleCount: willingMembershipIds.length,
         performedBy: uid,
         poolAmountMinor,
         selectedAt: now,

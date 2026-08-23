@@ -33,7 +33,7 @@ From root unless noted:
 - **No client-side Firestore writes.** Rules deny all writes; mutations are v2 Callable Functions (`onCall({ region: 'asia-south1', invoker: 'public' })`) in `functions/src/`, exported from `functions/src/index.ts`. New write path = new callable.
 - Rules are in a temporary open-read state (any signed-in user reads everything) with a TODO to restore the privacy model — don't assume read isolation and don't "fix" casually (see comments in `firestore.rules`).
 - Throw domain errors as `AppError` from shared and map them with `toHttpsError`; don't construct raw `HttpsError`s ad hoc.
-- Admin status comes from custom claims derived from the `ADMIN_PHONES` functions env var; clients refresh via the `syncClaims` callable.
+- Admin status comes from `users/{uid}.roles` in Firestore. Provision admins only with the trusted local `functions` package script; privileged callables verify the profile role server-side.
 - WhatsApp sends go through the Kwic adapter (`functions/src/messaging.ts`) using gitignored `functions/.env` (see `.env.example`): `KWIC_API_KEY` required. Templates are `_en`/`_ta` pairs in `shared/src/templates.ts`.
 
 ## Conventions

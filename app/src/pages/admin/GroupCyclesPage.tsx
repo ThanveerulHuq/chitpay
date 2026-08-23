@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Play, Trophy } from '@phosphor-icons/react'
 import { callStartCycle } from '@/lib/api'
-import { formatMinor } from '@shared'
+import { formatMinor, getCycleStartBlockReason } from '@shared'
 import GroupShell, { useGroupWorkspace } from './GroupShell'
 import { Button, Chip, ErrorNote } from '@/components/ui'
 import { useI18n } from '@/i18n'
@@ -30,6 +30,14 @@ function CyclesContent() {
       {cycles.map(({ id, data }) => {
         const winner = members.find((member) => member.id === data.recipientMembershipId)?.data.displayName
         const expectedAmount = group.contributionAmountMinor * data.expectedPaymentCount
+        const startBlockReason = getCycleStartBlockReason(
+          members.filter((member) => member.data.status === 'active').length,
+          data.cycleNumber,
+          cycles.map((cycle) => cycle.data),
+        )
+        const startBlockMessage = startBlockReason === 'no_active_members'
+          ? t('workspace.startCycleNeedsMember')
+          : null
         return <li key={id} className="rounded-2xl border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">
             <Link to={`/groups/${groupId}/cycles/${id}${isMemberView ? '?view=member' : ''}`} className="min-w-0 flex-1">
@@ -37,7 +45,7 @@ function CyclesContent() {
               <p className="mt-1 text-sm text-muted">{t('workspace.plannedStart', { date: data.plannedStartDate })}</p>
               {data.status !== 'upcoming' && <div className="mt-3 grid grid-cols-2 gap-2 text-sm"><span className="text-muted">{t('workspace.collected')}</span><span className="text-right font-semibold">{formatMinor(data.collectedAmountMinor, group.currency)} / {formatMinor(expectedAmount, group.currency)}</span><span className="text-muted">{t('workspace.winner')}</span><span className="flex items-center justify-end gap-1 font-semibold">{winner ? <><Trophy size={14} />{winner}</> : t('workspace.notSelected')}</span></div>}
             </Link>
-            {data.status === 'upcoming' && !isReadOnly ? <Button className="shrink-0 px-3 py-2 text-sm" onClick={() => void start(data.cycleNumber)} disabled={busyCycle !== null}><Play size={15} weight="fill" />{busyCycle === data.cycleNumber ? t('dash.starting') : t('workspace.startCycle')}</Button> : <ArrowRight size={18} className="mt-1 text-faint" />}
+            {data.status === 'upcoming' && !isReadOnly ? <div className="flex shrink-0 flex-col items-end gap-1"><Button className="px-3 py-2 text-sm" onClick={() => void start(data.cycleNumber)} disabled={busyCycle !== null || startBlockReason !== null} title={startBlockMessage ?? undefined}><Play size={15} weight="fill" />{busyCycle === data.cycleNumber ? t('dash.starting') : t('workspace.startCycle')}</Button>{startBlockMessage && <p className="max-w-36 text-right text-xs text-muted">{startBlockMessage}</p>}</div> : <ArrowRight size={18} className="mt-1 text-faint" />}
           </div>
         </li>
       })}

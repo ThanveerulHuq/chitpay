@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bell, CheckCircle, Circle, Play, Plus, Trophy } from '@phosphor-icons/react'
+import { Bell, CaretDown, CheckCircle, Circle, Play, Plus, Trophy } from '@phosphor-icons/react'
 import { callCompleteCycle, callSendReminder, callStartCycle, fetchBoard } from '@/lib/api'
 import type { BoardEntry } from '@shared'
-import { formatMinor } from '@shared'
+import { formatMinor, getCycleStartBlockReason } from '@shared'
 import { SelectionSection, PaymentMethodIcon, methodLabel } from '@/pages/admin/GroupDashboardPage'
 import GroupShell, { useGroupWorkspace } from './GroupShell'
 import PaymentSheet from '@/components/PaymentSheet'
@@ -20,6 +20,7 @@ function CycleDetailContent() {
   const cycle = cycles.find(({ id }) => Number(id) === cycleNumber)?.data ?? null
   const [board, setBoard] = useState<BoardEntry[] | null>(null)
   const [paymentMemberId, setPaymentMemberId] = useState<string | null>(null)
+  const [completeOpen, setCompleteOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,7 +47,15 @@ function CycleDetailContent() {
   }
 
   if (cycle.status === 'upcoming') {
-    return <><h1 className="text-xl font-bold">{t('workspace.cycleNumber', { cycle: cycle.cycleNumber })}</h1><p className="mt-1 text-sm text-muted">{t('workspace.plannedStart', { date: cycle.plannedStartDate })}</p><div className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center"><Chip tone="neutral">{t('workspace.statusUpcoming')}</Chip><p className="mx-auto mt-3 max-w-[32ch] text-sm text-muted">{t('workspace.plannedDateInfo')}</p>{!isReadOnly && <Button onClick={() => void start()} disabled={busy !== null} className="mt-5"><Play size={16} weight="fill" />{busy === 'start' ? t('dash.starting') : t('workspace.startCycle')}</Button>}</div>{error && <div className="mt-4"><ErrorNote>{error}</ErrorNote></div>}</>
+    const startBlockReason = getCycleStartBlockReason(
+      members.filter((member) => member.data.status === 'active').length,
+      cycle.cycleNumber,
+      cycles.map((entry) => entry.data),
+    )
+    const startBlockMessage = startBlockReason === 'no_active_members'
+      ? t('workspace.startCycleNeedsMember')
+      : null
+    return <><h1 className="text-xl font-bold">{t('workspace.cycleNumber', { cycle: cycle.cycleNumber })}</h1><p className="mt-1 text-sm text-muted">{t('workspace.plannedStart', { date: cycle.plannedStartDate })}</p><div className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center"><Chip tone="neutral">{t('workspace.statusUpcoming')}</Chip><p className="mx-auto mt-3 max-w-[32ch] text-sm text-muted">{t('workspace.plannedDateInfo')}</p>{startBlockMessage && <p className="mx-auto mt-3 max-w-[32ch] text-sm font-medium text-ink">{startBlockMessage}</p>}{!isReadOnly && <Button onClick={() => void start()} disabled={busy !== null || startBlockReason !== null} title={startBlockMessage ?? undefined} className="mt-5"><Play size={16} weight="fill" />{busy === 'start' ? t('dash.starting') : t('workspace.startCycle')}</Button>}</div>{error && <div className="mt-4"><ErrorNote>{error}</ErrorNote></div>}</>
   }
 
   if (!board) return <div className="rounded-2xl bg-sunken p-8 text-center text-sm text-muted">{t('common.loading')}</div>
@@ -55,10 +64,18 @@ function CycleDetailContent() {
   const expected = cycle.expectedPaymentCount * group.contributionAmountMinor
   const winner = cycle.recipientMembershipId ? memberMap.get(cycle.recipientMembershipId)?.displayName : null
   const ready = paidCount === cycle.expectedPaymentCount && Boolean(winner) && cycle.payout.status === 'paid'
+  const completionReadyCount = [
+    paidCount === cycle.expectedPaymentCount,
+    Boolean(winner),
+    cycle.payout.status === 'paid',
+  ].filter(Boolean).length
 
   async function remind(membershipId?: string) {
     setBusy(membershipId ?? 'remind'); setError(null)
-    try { await callSendReminder({ groupId, cycleNumber, membershipId }) }
+    try {
+      const result = await callSendReminder({ groupId, cycleNumber, membershipId })
+      if (result.total > 0 && result.sent < result.total) throw new Error(t('workspace.reminderError'))
+    }
     catch (nextError) { setError((nextError as Error).message) }
     finally { setBusy(null) }
   }
@@ -76,9 +93,15 @@ function CycleDetailContent() {
     <dl className="mt-4 grid grid-cols-3 divide-x divide-line rounded-2xl border border-line bg-surface text-center"><Stat label={t('workspace.collected')} value={formatMinor(collected, group.currency)} /><Stat label={t('workspace.paid')} value={`${paidCount} / ${cycle.expectedPaymentCount}`} /><Stat label={t('workspace.balance')} value={formatMinor(Math.max(expected - collected, 0), group.currency)} /></dl>
     {winner && <div className="mt-4 flex items-center gap-3 rounded-2xl bg-accent-soft p-4"><Trophy size={22} weight="fill" className="text-accent-strong dark:text-accent" /><div><p className="font-semibold">{winner}</p><p className="text-sm text-muted">{cycle.payout.status === 'paid' ? formatMinor(cycle.payout.amountMinor, group.currency) : t('workspace.payoutPending')}</p></div></div>}
     {error && <div className="mt-4"><ErrorNote>{error}</ErrorNote></div>}
-    <section className="mt-5"><h2 className="mb-2 text-sm font-semibold text-muted">{t('workspace.cycleMembers')}</h2><ul className="divide-y divide-line rounded-2xl border border-line bg-surface px-4">{board.map((entry) => { const pending = entry.status === 'pending'; return <li key={entry.membershipId} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{entry.name}</p><p className="mt-1 text-xs text-muted">{pending ? formatMinor(group.contributionAmountMinor, group.currency) : entry.method ? methodLabel(entry.method, t) : t('status.paid')}</p></div><Chip tone={pending ? 'pending' : 'paid'}>{!pending && <PaymentMethodIcon method={entry.method ?? 'other'} size={13} weight="bold" />} {pending ? t('status.pending') : t('status.paid')}</Chip>{active && !isReadOnly && pending && <button type="button" onClick={() => setPaymentMemberId(entry.membershipId)} className="rounded-full p-2 text-accent-strong"><Plus size={17} weight="bold" /></button>}</li> })}</ul></section>
+    <section className="mt-5"><h2 className="mb-2 text-sm font-semibold text-muted">{t('workspace.cycleMembers')}</h2><ul className="divide-y divide-line rounded-2xl border border-line bg-surface px-4">{board.map((entry) => { const pending = entry.status === 'pending'; return <li key={entry.membershipId} className="flex items-center gap-2 py-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{entry.name}</p><p className="mt-1 text-xs text-muted">{pending ? formatMinor(group.contributionAmountMinor, group.currency) : entry.method ? methodLabel(entry.method, t) : t('status.paid')}</p></div><Chip tone={pending ? 'pending' : 'paid'}>{!pending && <PaymentMethodIcon method={entry.method ?? 'other'} size={13} weight="bold" />} {pending ? t('status.pending') : t('status.paid')}</Chip>{active && !isReadOnly && pending && <div className="flex shrink-0 items-center gap-1"><button type="button" onClick={() => setPaymentMemberId(entry.membershipId)} disabled={busy !== null} aria-label={t('workspace.recordFor', { name: entry.name })} title={t('workspace.recordFor', { name: entry.name })} className="rounded-full p-2 text-accent-strong hover:bg-accent-soft disabled:opacity-40 dark:text-accent"><Plus size={17} weight="bold" /></button><button type="button" onClick={() => void remind(entry.membershipId)} disabled={busy !== null} aria-label={t('workspace.remindFor', { name: entry.name })} title={t('workspace.remindFor', { name: entry.name })} className="rounded-full p-2 text-accent-strong hover:bg-accent-soft disabled:opacity-40 dark:text-accent"><Bell size={17} weight={busy === entry.membershipId ? 'fill' : 'bold'} /></button></div>}</li> })}</ul></section>
     {active && !isReadOnly && <SelectionSection groupId={groupId} group={group} cycle={cycle} board={board} members={members} onChanged={() => void refresh()} onError={setError} />}
-    {active && !isReadOnly && <section className="mt-5 rounded-2xl border border-line bg-surface p-4"><h2 className="font-semibold">{t('workspace.completeCycle')}</h2><Checklist done={paidCount === cycle.expectedPaymentCount} label={t('workspace.allPaymentsDone')} /><Checklist done={Boolean(winner)} label={t('workspace.recipientDone')} /><Checklist done={cycle.payout.status === 'paid'} label={t('workspace.payoutDone')} /><Button onClick={() => void complete()} disabled={!ready || busy !== null} className="mt-4 w-full">{busy === 'complete' ? t('common.saving') : t('workspace.completeCycle')}</Button></section>}
+    {active && !isReadOnly && <section className="mt-5 overflow-hidden rounded-2xl border border-line bg-surface">
+      <button type="button" aria-expanded={completeOpen} aria-controls="complete-cycle-details" onClick={() => setCompleteOpen((open) => !open)} className="flex w-full items-center gap-3 p-4 text-left hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent">
+        <span className="min-w-0 flex-1"><span className="block font-semibold">{t('workspace.completeCycle')}</span><span className="block text-sm text-muted">{t('workspace.readyCount', { count: completionReadyCount, total: 3 })}</span></span>
+        <CaretDown size={18} className={`shrink-0 text-faint transition-transform ${completeOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {completeOpen && <div id="complete-cycle-details" className="border-t border-line/60 px-4 pb-4"><Checklist done={paidCount === cycle.expectedPaymentCount} label={t('workspace.allPaymentsDone')} /><Checklist done={Boolean(winner)} label={t('workspace.recipientDone')} /><Checklist done={cycle.payout.status === 'paid'} label={t('workspace.payoutDone')} /><Button onClick={() => void complete()} disabled={!ready || busy !== null} className="mt-4 w-full">{busy === 'complete' ? t('common.saving') : t('workspace.completeCycle')}</Button></div>}
+    </section>}
     {!isReadOnly && paymentMemberId && <PaymentSheet groupId={groupId} group={group} cycleNumber={cycleNumber} fixedMembershipId={paymentMemberId} onClose={() => setPaymentMemberId(null)} onDone={() => { setPaymentMemberId(null); void refresh() }} />}
   </>
 }

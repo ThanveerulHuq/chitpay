@@ -26,16 +26,12 @@ interface CreateGroupInput {
 }
 
 
-function assertAdminOf(authObj: any, groupId: string): Promise<GroupDoc> {
-  return db
-    .doc(`groups/${groupId}`)
-    .get()
-    .then((snap) => {
-      const data = snap.data() as GroupDoc | undefined
-      if (!snap.exists || !data) throw new AppError('not_found')
-      assertAdminAccess(authObj, data)
-      return data
-    })
+async function assertAdminOf(authObj: any, groupId: string): Promise<GroupDoc> {
+  const snap = await db.doc(`groups/${groupId}`).get()
+  const data = snap.data() as GroupDoc | undefined
+  if (!snap.exists || !data) throw new AppError('not_found')
+  await assertAdminAccess(authObj, data)
+  return data
 }
 
 export { assertAdminOf }
@@ -44,8 +40,7 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
   try {
     const uid = req.auth?.uid
     if (!uid) throw new AppError('unauthenticated')
-    const isAdminRole = Array.isArray(req.auth?.token?.roles) && req.auth?.token?.roles.includes('admin')
-    if (!isAdminRole) throw new AppError('permission_denied')
+    await assertAdminAccess(req.auth)
     const input = req.data as CreateGroupInput
 
     const name = String(input.name ?? '').trim()
@@ -130,7 +125,7 @@ export const archiveGroup = onCall({ region: 'asia-south1', invoker: 'public' },
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group, tx)
       if (group.status === 'archived') {
         throw new AppError('invalid_transition', 'This group is already archived.')
       }
@@ -158,7 +153,7 @@ export const unarchiveGroup = onCall({ region: 'asia-south1', invoker: 'public' 
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group, tx)
       const restoredStatus = resolveUnarchiveStatus(group)
       tx.update(groupRef, {
         status: restoredStatus,

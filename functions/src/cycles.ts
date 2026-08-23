@@ -5,6 +5,8 @@ import {
   AppError,
   assertGroupWritable,
   formatMinor,
+  getCycleStartBlockReason,
+  summarizePendingCyclePayments,
 } from '@chitapp/shared'
 import type {
   BoardDoc,
@@ -53,7 +55,7 @@ export const startCycle = onCall({ region: 'asia-south1', invoker: 'public' }, a
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group, tx)
       assertGroupWritable(group)
       if (group.status !== 'active') {
         throw new AppError('invalid_transition', 'This group is not active.')
@@ -72,8 +74,26 @@ export const startCycle = onCall({ region: 'asia-south1', invoker: 'public' }, a
       const membersSnap = await tx.get(
         groupRef.collection('members').where('status', '==', 'active'),
       )
-      if (membersSnap.empty) {
+      const previousCycleSnaps = await Promise.all(
+        Array.from({ length: n - 1 }, (_, index) =>
+          tx.get(groupRef.collection('cycles').doc(String(index + 1))),
+        ),
+      )
+      const blockReason = getCycleStartBlockReason(
+        membersSnap.size,
+        n,
+        previousCycleSnaps.flatMap((snap, index) => {
+          const cycle = snap.data() as CycleDoc | undefined
+          return snap.exists && cycle
+            ? [{ cycleNumber: index + 1, status: cycle.status }]
+            : []
+        }),
+      )
+      if (blockReason === 'no_active_members') {
         throw new AppError('invalid_transition', 'Add members before starting a cycle.')
+      }
+      if (blockReason === 'previous_cycle_upcoming') {
+        throw new AppError('invalid_transition', 'Start all previous cycles first.')
       }
 
       const entries = membersSnap.docs.map((m) => {
@@ -141,7 +161,7 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group, tx)
       assertGroupWritable(group)
 
       const n = Math.floor(Number(input.cycleNumber))
@@ -243,7 +263,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
     const groupSnap = await groupRef.get()
     const group = groupSnap.data() as GroupDoc | undefined
     if (!groupSnap.exists || !group) throw new AppError('not_found')
-    assertAdminAccess(req.auth, group)
+    await assertAdminAccess(req.auth, group)
     assertGroupWritable(group)
 
     const n = Math.floor(Number(cycleNumber))
@@ -316,6 +336,93 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
   }
 })
 
+interface SendMemberReminderInput {
+  groupId: string
+  membershipId: string
+}
+
+export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const uid = req.auth?.uid
+    if (!uid) throw new AppError('unauthenticated')
+    const { groupId, membershipId } = req.data as SendMemberReminderInput
+    if (!groupId || !membershipId) throw new AppError('invalid_argument')
+
+    const groupRef = db.doc(`groups/${groupId}`)
+    const groupSnap = await groupRef.get()
+    const group = groupSnap.data() as GroupDoc | undefined
+    if (!groupSnap.exists || !group) throw new AppError('not_found')
+    await assertAdminAccess(req.auth, group)
+    assertGroupWritable(group)
+
+    const memberSnap = await groupRef.collection('members').doc(membershipId).get()
+    const member = memberSnap.data() as GroupMemberDoc | undefined
+    if (!memberSnap.exists || !member) throw new AppError('not_found')
+
+    const activeCyclesSnap = await groupRef.collection('cycles').where('status', '==', 'active').get()
+    const pending = (await Promise.all(activeCyclesSnap.docs.map(async (cycleDoc) => {
+      const paymentSnap = await cycleDoc.ref.collection('payments').doc(membershipId).get()
+      const payment = paymentSnap.data() as PaymentDoc | undefined
+      if (!paymentSnap.exists || !payment || payment.status !== 'pending') return null
+      const cycle = cycleDoc.data() as CycleDoc
+      return { cycleNumber: cycle.cycleNumber, amountMinor: payment.amountMinor }
+    })))
+      .filter((entry): entry is { cycleNumber: number; amountMinor: number } => entry !== null)
+
+    const { cycleNumbers, totalDueMinor } = summarizePendingCyclePayments(pending)
+    if (pending.length === 0) {
+      return { sent: 0, pendingCycleCount: 0, cycleNumbers, totalDueMinor }
+    }
+
+    const userSnap = await db.doc(`users/${member.uid}`).get()
+    const user = userSnap.data() as UserDoc | undefined
+    if (!user?.phone) throw new AppError('not_found', 'This member has no phone number.')
+
+    const template = 'pending_payments_reminder' as const
+    let error: string | null = null
+    let providerMessageId: string | null = null
+    try {
+      const language = user.language ?? 'en'
+      const res = await messaging.sendTemplate(user.phone, template, {
+        member_name: member.displayName,
+        group_name: group.name,
+        pending_cycles: cycleNumbers.join(', '),
+        pending_count: String(cycleNumbers.length),
+        total_due: formatMinor(totalDueMinor, group.currency),
+        group_id: groupId,
+      }, language)
+      providerMessageId = res.providerMessageId
+    } catch (sendError) {
+      error = sendError instanceof Error ? sendError.message : String(sendError)
+    }
+
+    const log: MessageLogDoc = {
+      groupId,
+      cycleNumber: cycleNumbers[0],
+      cycleNumbers,
+      template,
+      toPhone: user.phone,
+      membershipId,
+      providerMessageId,
+      status: error ? 'failed' : 'sent',
+      error,
+      sentBy: uid,
+      createdAt: FieldValue.serverTimestamp() as unknown as number,
+      updatedAt: FieldValue.serverTimestamp() as unknown as number,
+    }
+    await groupRef.collection('messages').add(log)
+
+    return {
+      sent: error ? 0 : 1,
+      pendingCycleCount: cycleNumbers.length,
+      cycleNumbers,
+      totalDueMinor,
+    }
+  } catch (err) {
+    throw toHttpsError(err, { fn: 'sendMemberReminder', uid: req.auth?.uid, data: req.data })
+  }
+})
+
 interface EditPaymentInput {
   groupId: string
   cycleNumber: number
@@ -340,7 +447,7 @@ export const editPayment = onCall({ region: 'asia-south1', invoker: 'public' }, 
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group, tx)
       assertGroupWritable(group)
 
       const cycleRef = groupRef.collection('cycles').doc(String(input.cycleNumber))
@@ -417,7 +524,7 @@ export const reversePayment = onCall({ region: 'asia-south1', invoker: 'public' 
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group, tx)
       assertGroupWritable(group)
 
       const cycleRef = groupRef.collection('cycles').doc(String(input.cycleNumber))

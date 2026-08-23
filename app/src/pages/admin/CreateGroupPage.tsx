@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { callCreateGroup } from '@/lib/api'
-import { generateCycleSchedule, toMinor, type CycleFrequency } from '@shared'
-import { Button, DateInput, ErrorNote, Field, Input, Page, PageHeader, Select, Textarea } from '@/components/ui'
+import { generateCycleSchedule, isValidIsoDate, toMinor, type CycleFrequency } from '@shared'
+import { Button, DateInput, Dropdown, ErrorNote, Field, Input, Page, PageHeader, Textarea } from '@/components/ui'
 import { useT } from '@/i18n'
 
 export default function CreateGroupPage() {
@@ -41,7 +41,7 @@ export default function CreateGroupPage() {
   }
 
   const parsedCycleCount = Number(cycleCount)
-  const schedule = startDate && Number.isInteger(parsedCycleCount) && parsedCycleCount > 0 && parsedCycleCount <= 100
+  const schedule = isValidIsoDate(startDate) && Number.isInteger(parsedCycleCount) && parsedCycleCount > 0 && parsedCycleCount <= 100
     ? generateCycleSchedule(startDate, frequency, parsedCycleCount)
     : []
 
@@ -107,11 +107,15 @@ export default function CreateGroupPage() {
         <section className="space-y-5 border-t border-line pt-6">
           <div className="grid grid-cols-2 gap-4">
             <Field label={t('createGroup.frequency')}>
-              <Select value={frequency} onChange={(e) => setFrequency(e.target.value as CycleFrequency)}>
-                <option value="weekly">{t('createGroup.frequencyWeekly')}</option>
-                <option value="biweekly">{t('createGroup.frequencyBiweekly')}</option>
-                <option value="monthly">{t('createGroup.frequencyMonthly')}</option>
-              </Select>
+              <Dropdown
+                value={frequency}
+                onChange={setFrequency}
+                options={[
+                  { value: 'weekly', label: t('createGroup.frequencyWeekly') },
+                  { value: 'biweekly', label: t('createGroup.frequencyBiweekly') },
+                  { value: 'monthly', label: t('createGroup.frequencyMonthly') },
+                ] satisfies { value: CycleFrequency; label: string }[]}
+              />
             </Field>
             <Field label={t('createGroup.startDate')}>
               <DateInput
