@@ -12,7 +12,8 @@ import type { PaymentRecord } from '@/lib/api'
 import { auth } from '@/lib/firebase'
 import { formatMinor } from '@shared'
 import type { BoardEntry, CycleDoc, GroupDoc } from '@shared'
-import { Chip, Page, PageHeader, Skeleton } from '@/components/ui'
+import { Chip, Page, PageHeader } from '@/components/ui'
+import { GroupDetailLoadingScreen } from '@/components/LoadingScreens'
 import DateRangeFields from '@/components/DateRangeFields'
 import PaymentHistoryList from '@/components/PaymentHistoryList'
 import { useT } from '@/i18n'
@@ -66,13 +67,7 @@ export default function MemberGroupView({ groupId }: { groupId: string }) {
   }, [groupId])
 
   if (loading || !group) {
-    return (
-      <Page>
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="mt-4 h-14 w-full" />
-        <Skeleton className="mt-6 h-64 w-full" />
-      </Page>
-    )
+    return <GroupDetailLoadingScreen />
   }
 
   const g = group.data
@@ -193,4 +188,3 @@ function Stat({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
-

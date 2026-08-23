@@ -172,7 +172,7 @@ export function PageHeader({
 
 /* Skeleton loader matching final layout shape (no spinners). */
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div aria-hidden className={`animate-pulse rounded-2xl bg-sunken ${className}`} />
+  return <div aria-hidden className={`animate-pulse rounded-2xl bg-sunken motion-reduce:animate-none ${className}`} />
 }
 
 export function ErrorNote({ children }: { children: ReactNode }) {

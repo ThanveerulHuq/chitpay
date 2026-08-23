@@ -21,7 +21,7 @@ export const en = {
   'common.slot': 'Slot {slotNo}',
   'common.inactive': 'Inactive',
   'common.admin': 'Admin',
-  'common.loading': '…',
+  'common.loading': 'Loading…',
 
   // Status Chips
   'status.paid': 'Paid',

@@ -23,7 +23,7 @@ export const ta = {
   'common.slot': 'எண் {slotNo}',
   'common.inactive': 'செயலில் இல்லை',
   'common.admin': 'நிர்வாகி',
-  'common.loading': '…',
+  'common.loading': 'ஏற்றப்படுகிறது…',
 
   // Status Chips
   'status.paid': 'செலுத்தப்பட்டது',

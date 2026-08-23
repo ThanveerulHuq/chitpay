@@ -38,9 +38,9 @@ import {
   Page,
   PageHeader,
   PhoneInput,
-  Skeleton,
   Textarea,
 } from '@/components/ui'
+import { GroupDetailLoadingScreen } from '@/components/LoadingScreens'
 import { useI18n, useT } from '@/i18n'
 import { useAuth } from '@/lib/useAuth'
 import { useViewMode } from '@/lib/useViewMode'
@@ -109,13 +109,7 @@ export default function GroupDashboardPage() {
   }, [groupId])
 
   if (loading || !group) {
-    return (
-      <Page>
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="mt-4 h-14 w-full" />
-        <Skeleton className="mt-6 h-64 w-full" />
-      </Page>
-    )
+    return <GroupDetailLoadingScreen />
   }
 
   // Members get a read-only view; admins get the management dashboard unless view=member is explicitly requested

@@ -5,7 +5,8 @@ import { fetchGroup, fetchMyGroups, fetchMyMemberships } from '@/lib/api'
 import { useAuth } from '@/lib/useAuth'
 import { formatMinor } from '@shared'
 import type { GroupDoc, MembershipMirrorDoc } from '@shared'
-import { Chip, Page, Skeleton, Button } from '@/components/ui'
+import { Chip, Page, Button } from '@/components/ui'
+import { GroupsListLoadingScreen } from '@/components/LoadingScreens'
 import { useT } from '@/i18n'
 import { useViewMode } from '@/lib/useViewMode'
 import PaymentSheet from '@/components/PaymentSheet'
@@ -62,6 +63,8 @@ export default function GroupsListPage() {
 
   const entries = allEntries.filter((e) => isAdmin ? e.kind === viewMode : e.kind === 'member')
 
+  if (loading) return <GroupsListLoadingScreen />
+
   return (
     <Page>
       <header className="sticky top-0 z-30 -mx-4 mb-5 flex items-center justify-between gap-3 border-b border-line/50 bg-bg/90 px-4 py-3.5 backdrop-blur pt-[max(0.875rem,env(safe-area-inset-top))]">
@@ -93,15 +96,7 @@ export default function GroupsListPage() {
         </div>
       </header>
 
-      {loading && (
-        <div className="space-y-3">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-      )}
-
-      {!loading && entries.length === 0 && (
+      {entries.length === 0 && (
         <div className="mt-16 flex flex-col items-center text-center">
           <div className="flex size-14 items-center justify-center rounded-full bg-accent-soft text-accent-strong dark:text-accent">
             <Users size={28} />
