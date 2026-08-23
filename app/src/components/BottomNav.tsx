@@ -2,13 +2,19 @@ import { useAuth } from '@/lib/useAuth'
 import { useViewMode } from '@/lib/useViewMode'
 import { UserCircle, ShieldStar } from '@phosphor-icons/react'
 import { useT } from '@/i18n'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 export default function BottomNav() {
   const { isAdmin } = useAuth()
   const { viewMode, setViewMode } = useViewMode()
   const t = useT()
   const location = useLocation()
+  const navigate = useNavigate()
+
+  const selectView = (mode: 'admin' | 'member') => {
+    setViewMode(mode)
+    navigate('/groups')
+  }
 
   if (!isAdmin) return null
   if (location.pathname === '/login') return null
@@ -17,7 +23,7 @@ export default function BottomNav() {
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-line bg-surface/90 backdrop-blur pb-[env(safe-area-inset-bottom)]">
         <div className="flex h-16 max-w-md mx-auto">
           <button
-            onClick={() => setViewMode('admin')}
+            onClick={() => selectView('admin')}
             className={`flex-1 flex flex-col items-center justify-center gap-1 transition-colors ${
               viewMode === 'admin' ? 'text-accent' : 'text-muted hover:text-ink'
             }`}
@@ -28,7 +34,7 @@ export default function BottomNav() {
             </span>
           </button>
           <button
-            onClick={() => setViewMode('member')}
+            onClick={() => selectView('member')}
             className={`flex-1 flex flex-col items-center justify-center gap-1 transition-colors ${
               viewMode === 'member' ? 'text-accent' : 'text-muted hover:text-ink'
             }`}
