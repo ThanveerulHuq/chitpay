@@ -3,7 +3,7 @@ import type { ArchivableGroupStatus, GroupDoc } from './types.js'
 
 type ArchiveState = Pick<
   GroupDoc,
-  'status' | 'statusBeforeArchive' | 'currentCycleNumber' | 'durationMonths'
+  'status' | 'statusBeforeArchive' | 'completedCycleCount' | 'cycleCount'
 >
 
 export function assertGroupWritable(group: Pick<GroupDoc, 'status'>): void {
@@ -19,5 +19,5 @@ export function resolveUnarchiveStatus(group: ArchiveState): ArchivableGroupStat
   if (group.statusBeforeArchive === 'active' || group.statusBeforeArchive === 'completed') {
     return group.statusBeforeArchive
   }
-  return group.currentCycleNumber >= group.durationMonths ? 'completed' : 'active'
+  return group.completedCycleCount >= group.cycleCount ? 'completed' : 'active'
 }

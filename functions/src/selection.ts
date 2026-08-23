@@ -18,6 +18,7 @@ import { messaging } from './messaging.js'
 
 interface ConfirmSelectionInput {
   groupId: string
+  cycleNumber: number
   membershipId: string
 }
 
@@ -25,7 +26,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
   try {
     const uid = req.auth?.uid
     if (!uid) throw new AppError('unauthenticated')
-    const { groupId, membershipId } = req.data as ConfirmSelectionInput
+    const { groupId, cycleNumber, membershipId } = req.data as ConfirmSelectionInput
 
     let poolAmountMinor = 0
     let notifiedName = ''
@@ -41,7 +42,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
       assertAdminAccess(req.auth, group)
       assertGroupWritable(group)
 
-      const n = group.currentCycleNumber
+      const n = Math.floor(Number(cycleNumber))
       if (!n || n < 1) throw new AppError('invalid_transition')
 
       const cycleRef = groupRef.collection('cycles').doc(String(n))
@@ -52,7 +53,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         // Deterministic loser of a double-confirm race.
         throw new AppError('already_selected')
       }
-      if (cycle.status !== 'payment_open' && cycle.status !== 'collection_complete') {
+      if (cycle.status !== 'active') {
         throw new AppError('invalid_transition')
       }
 
@@ -89,12 +90,11 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         throw new AppError('not_eligible')
       }
 
-      poolAmountMinor = group.monthlyAmountMinor * Math.max(group.memberCount, 1)
+      poolAmountMinor = group.contributionAmountMinor * Math.max(cycle.expectedPaymentCount, 1)
 
       const now = FieldValue.serverTimestamp() as unknown as number
 
       tx.update(cycleRef, {
-        status: 'recipient_selected',
         recipientMembershipId: membershipId,
       })
 
@@ -146,6 +146,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         }
         const log: MessageLogDoc = {
           groupId,
+          cycleNumber,
           template: 'recipient_notification',
           toPhone: user.phone,
           membershipId,

@@ -6,7 +6,6 @@ export interface TemplateVars {
   groupName: string
   amountMinor: number
   currency: string
-  dueDate?: string
   poolAmountMinor?: number
   loginCode?: string
   loginLinkId?: string
@@ -18,7 +17,6 @@ export type TemplateId =
   | 'login_link'
   | 'member_invite'
   | 'payment_reminder'
-  | 'overdue_reminder'
   | 'recipient_notification'
   | 'payout_confirmation'
 
@@ -45,19 +43,13 @@ export function renderMessage(
         )
       case 'payment_reminder':
         return (
-          `வணக்கம் ${v.memberName}, ${v.groupName} குழுவிற்கான உங்கள் மாத சந்தா தொகை ${amount}` +
-          `${v.dueDate ? ` ${v.dueDate} அன்று` : ' இன்று'} செலுத்தப்பட வேண்டும். ` +
-          `செலுத்தி உறுதிப்படுத்தவும்.`
-        )
-      case 'overdue_reminder':
-        return (
-          `வணக்கம் ${v.memberName}, ${v.groupName} குழுவிற்கான உங்கள் மாத சந்தா தொகை ${amount} ` +
-          `செலுத்துவதற்கான கடைசி தேதி முடிந்துவிட்டது (கடைசி தேதி: ${v.dueDate}). தயவுசெய்து உடனடியாக செலுத்தவும்.`
+          `வணக்கம் ${v.memberName}, ${v.groupName} குழுவிற்கான உங்கள் சுற்று சந்தா தொகை ${amount}. ` +
+          `தயவுசெய்து செலுத்தி உறுதிப்படுத்தவும்.`
         )
       case 'recipient_notification': {
         const pool = formatMinor(v.poolAmountMinor ?? v.amountMinor, v.currency)
         return (
-          `வாழ்த்துகள் ${v.memberName}! ${v.groupName} குழுவில் இந்த மாதத்திற்கான ` +
+          `வாழ்த்துகள் ${v.memberName}! ${v.groupName} குழுவில் இந்த சுற்றுக்கான ` +
           `${pool} சீட்டுத் தொகை உங்களுக்குக் கிடைத்துள்ளது.`
         )
       }
@@ -80,19 +72,14 @@ export function renderMessage(
       )
     case 'payment_reminder':
       return (
-        `Hi ${v.memberName}, your monthly contribution of ${amount} for ` +
-        `${v.groupName} is due${v.dueDate ? ` on ${v.dueDate}` : ' today'}. ` +
+        `Hi ${v.memberName}, your cycle contribution of ${amount} for ` +
+        `${v.groupName} is pending. ` +
         `Please make the payment and share confirmation.`
-      )
-    case 'overdue_reminder':
-      return (
-        `Hi ${v.memberName}, your monthly contribution of ${amount} for ` +
-        `${v.groupName} is overdue (was due ${v.dueDate}). Please pay at the earliest.`
       )
     case 'recipient_notification': {
       const pool = formatMinor(v.poolAmountMinor ?? v.amountMinor, v.currency)
       return (
-        `Congratulations ${v.memberName}! You have been selected as this month's ` +
+        `Congratulations ${v.memberName}! You have been selected as this cycle's ` +
         `recipient for ${pool} in ${v.groupName}.`
       )
     }

@@ -162,7 +162,7 @@ export default function SettingsPage() {
                           <p className="truncate font-semibold text-ink">{data.name}</p>
                           <p className="mt-1 flex items-center gap-3 text-xs text-muted">
                             <span className="inline-flex items-center gap-1"><Users size={13} />{data.memberCount}</span>
-                            <span className="inline-flex items-center gap-1"><CalendarBlank size={13} />{Math.max(data.currentCycleNumber, 0)}/{data.durationMonths}</span>
+                            <span className="inline-flex items-center gap-1"><CalendarBlank size={13} />{data.completedCycleCount}/{data.cycleCount}</span>
                           </p>
                         </div>
                       </div>

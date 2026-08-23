@@ -6,8 +6,8 @@ export {
   syncClaims,
 } from './auth.js'
 export { createGroup, addMember, archiveGroup, unarchiveGroup } from './groups.js'
-export { startNextCycle, markPaid, editPayment, reversePayment, sendReminder } from './cycles.js'
+export { startCycle, markPaid, editPayment, reversePayment, sendReminder } from './cycles.js'
 export { backfillFinancialSummaries } from './backfill.js'
 export { confirmSelection } from './selection.js'
-export { recordPayout } from './payout.js'
+export { recordPayout, completeCycle } from './payout.js'
 export { toHttpsError } from './httpsError.js'

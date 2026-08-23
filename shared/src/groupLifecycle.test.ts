@@ -18,8 +18,8 @@ describe('group archive lifecycle', () => {
       expect(resolveUnarchiveStatus({
         status: 'archived',
         statusBeforeArchive,
-        currentCycleNumber: 1,
-        durationMonths: 10,
+        completedCycleCount: 1,
+        cycleCount: 10,
       })).toBe(statusBeforeArchive)
     },
   )
@@ -27,21 +27,21 @@ describe('group archive lifecycle', () => {
   it('infers a safe status for legacy archived groups', () => {
     expect(resolveUnarchiveStatus({
       status: 'archived',
-      currentCycleNumber: 4,
-      durationMonths: 4,
+      completedCycleCount: 4,
+      cycleCount: 4,
     })).toBe('completed')
     expect(resolveUnarchiveStatus({
       status: 'archived',
-      currentCycleNumber: 2,
-      durationMonths: 4,
+      completedCycleCount: 2,
+      cycleCount: 4,
     })).toBe('active')
   })
 
   it('rejects restore attempts for non-archived groups', () => {
     expect(() => resolveUnarchiveStatus({
       status: 'active',
-      currentCycleNumber: 0,
-      durationMonths: 4,
+      completedCycleCount: 0,
+      cycleCount: 4,
     })).toThrow(AppError)
   })
 })

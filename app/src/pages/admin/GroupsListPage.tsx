@@ -1,19 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Users, CalendarBlank, CurrencyInr, Gear, Receipt } from '@phosphor-icons/react'
-import { fetchGroup, fetchMyGroups, fetchMyMemberships } from '@/lib/api'
+import { Plus, Users, CalendarBlank, CurrencyInr, Gear } from '@phosphor-icons/react'
+import { fetchMyGroups, fetchMyMemberships } from '@/lib/api'
 import { useAuth } from '@/lib/useAuth'
 import { formatMinor } from '@shared'
-import type { GroupDoc, MembershipMirrorDoc } from '@shared'
 import { Chip, Page, Button } from '@/components/ui'
 import { GroupsListLoadingScreen } from '@/components/LoadingScreens'
 import { useT } from '@/i18n'
 import { useViewMode } from '@/lib/useViewMode'
-import PaymentSheet from '@/components/PaymentSheet'
 
 type ListEntry =
-  | { kind: 'admin'; id: string; name: string; amountMinor: number; currency: string; memberCount: number; cycleNumber: number; durationMonths: number }
-  | { kind: 'member'; id: string; name: string; amountMinor: number; currency: string; myStatus: MembershipMirrorDoc['myPaymentStatus'] }
+  | { kind: 'admin'; id: string; name: string; amountMinor: number; currency: string; memberCount: number; completedCycleCount: number; cycleCount: number }
+  | { kind: 'member'; id: string; name: string; amountMinor: number; currency: string }
 
 export default function GroupsListPage() {
   const t = useT()
@@ -21,8 +19,6 @@ export default function GroupsListPage() {
   const { viewMode } = useViewMode()
   const [allEntries, setAllEntries] = useState<ListEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [paymentGroup, setPaymentGroup] = useState<{ id: string; data: GroupDoc } | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -37,20 +33,19 @@ export default function GroupsListPage() {
         kind: 'admin',
         id,
         name: g.name,
-        amountMinor: g.monthlyAmountMinor,
+        amountMinor: g.contributionAmountMinor,
         currency: g.currency,
         memberCount: g.memberCount,
-        cycleNumber: g.currentCycleNumber,
-        durationMonths: g.durationMonths,
+        completedCycleCount: g.completedCycleCount,
+        cycleCount: g.cycleCount,
       }))
       const memberEntries: ListEntry[] = memberships
         .map((m) => ({
           kind: 'member',
           id: m.data.groupId,
           name: m.data.groupName,
-          amountMinor: m.data.monthlyAmountMinor,
+          amountMinor: m.data.contributionAmountMinor,
           currency: m.data.currency,
-          myStatus: m.data.myPaymentStatus,
         }))
 
       setAllEntries([...adminEntries, ...memberEntries])
@@ -59,7 +54,7 @@ export default function GroupsListPage() {
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [])
 
   const entries = allEntries.filter((e) => isAdmin ? e.kind === viewMode : e.kind === 'member')
 
@@ -123,7 +118,7 @@ export default function GroupsListPage() {
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 className="truncate font-semibold">{entry.name}</h2>
                   <span className="shrink-0 text-sm text-muted">
-                    {t('common.perMonth', { amount: formatMinor(entry.amountMinor, entry.currency) })}
+                    {formatMinor(entry.amountMinor, entry.currency)}
                   </span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-3 text-xs text-muted">
@@ -135,33 +130,22 @@ export default function GroupsListPage() {
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <CalendarBlank size={13} />
-                      {Math.max(entry.cycleNumber, 0)}/{entry.durationMonths}
+                      {entry.completedCycleCount}/{entry.cycleCount}
                     </span>
                     <span className="ml-auto inline-flex items-center gap-1 font-medium text-ink">
                       <CurrencyInr size={13} weight="bold" />
-                      {formatMinor(entry.amountMinor * entry.memberCount * Math.max(entry.cycleNumber, 0), entry.currency)}
+                      {formatMinor(entry.amountMinor * entry.memberCount * entry.completedCycleCount, entry.currency)}
                     </span>
                   </>
                 ) : (
-                  <Chip tone={entry.myStatus === 'paid' ? 'paid' : 'pending'}>
-                    {entry.myStatus == null ? t('status.notStarted') : entry.myStatus === 'paid' ? t('status.paid') : t('status.paymentDue')}
-                  </Chip>
+                  <Chip tone="neutral">{t('workspace.members')}</Chip>
                 )}
                 </div>
               </Link>
-              {entry.kind === 'admin' && viewMode === 'admin' && entry.cycleNumber > 0 && (
-                <button type="button" onClick={async () => { const group = await fetchGroup(entry.id); if (group) setPaymentGroup(group) }} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-accent/30 bg-accent-soft py-2.5 text-sm font-semibold text-accent-strong dark:text-accent">
-                  <Receipt size={16} weight="bold" />
-                  {t('workspace.recordPayment')}
-                </button>
-              )}
             </div>
           </li>
         ))}
       </ul>
-      {paymentGroup && paymentGroup.data.currentCycleNumber > 0 && (
-        <PaymentSheet groupId={paymentGroup.id} group={paymentGroup.data} cycleNumber={paymentGroup.data.currentCycleNumber} onClose={() => setPaymentGroup(null)} onDone={() => { setPaymentGroup(null); setRefreshKey((value) => value + 1) }} />
-      )}
     </Page>
   )
 }
