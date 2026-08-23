@@ -29,12 +29,12 @@ describe('message templates', () => {
 
     it('renders login link copy', () => {
       const msg = renderMessage('login_link', vars)
-      expect(msg).toContain("Hi Farhan, here's your access link for Chitpay.")
+      expect(msg).toContain("Hi Farhan, here's your access link for ChitPay.")
       expect(msg).toContain('Tap the button below to see your group.')
     })
 
     it('renders member invite', () => {
-      const msg = renderMessage('member_invite', { ...vars, loginCode: '123456', appUrl: 'https://chitapp.app' })
+      const msg = renderMessage('member_invite', { ...vars, loginCode: '123456', appUrl: 'https://chitpay.web.app' })
       expect(msg).toContain('Farhan')
       expect(msg).toContain('Ahmed Friends Group')
       expect(msg).toContain('123456')
@@ -55,7 +55,7 @@ describe('message templates', () => {
   describe('Tamil', () => {
     it('renders login code in Tamil', () => {
       const msg = renderMessage('login_code', { ...vars, loginCode: '123456' }, 'ta')
-      expect(msg).toContain('ChitApp உள்நுழைவு OTP: 123456')
+      expect(msg).toContain('ChitPay உள்நுழைவு OTP: 123456')
       expect(msg).toContain('5 நிமிடங்களில்')
     })
 

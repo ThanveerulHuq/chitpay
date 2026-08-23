@@ -153,7 +153,7 @@ export const ta = {
   'dash.shareLoginDetails': 'இந்த உள்நுழைவு விவரங்களை அவர்களுடன் பகிரவும்:',
   'dash.passwordLabel': 'கடவுச்சொல்',
   'dash.sendViaWhatsapp': 'WhatsApp வழியாக அனுப்பு',
-  'dash.whatsappInviteText': "வணக்கம் {name}! நீங்கள் ChitApp-ல் சீட்டுக் குழுவில் சேர்க்கப்பட்டுள்ளீர்கள். உங்கள் கைபேசி எண் மற்றும் கடவுச்சொல்லுடன் ({password}) https://chitapp.app தளத்தில் உள்நுழையவும்.",
+  'dash.whatsappInviteText': "வணக்கம் {name}! நீங்கள் ChitPay-ல் சீட்டுக் குழுவில் சேர்க்கப்பட்டுள்ளீர்கள். உங்கள் கைபேசி எண் மற்றும் கடவுச்சொல்லுடன் ({password}) https://chitpay.web.app தளத்தில் உள்நுழையவும்.",
 
   // Group Workspace
   'workspace.reports': 'அறிக்கைகள்',

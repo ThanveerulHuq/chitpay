@@ -151,7 +151,7 @@ export const en = {
   'dash.shareLoginDetails': 'Share these login details with them:',
   'dash.passwordLabel': 'Password',
   'dash.sendViaWhatsapp': 'Send via WhatsApp',
-  'dash.whatsappInviteText': "Hi {name}! You've been added to a chit group on ChitApp. Login at https://chitapp.app with your mobile number and password: {password}",
+  'dash.whatsappInviteText': "Hi {name}! You've been added to a chit group on ChitPay. Login at https://chitpay.web.app with your mobile number and password: {password}",
 
   // Group Workspace
   'workspace.reports': 'Reports',

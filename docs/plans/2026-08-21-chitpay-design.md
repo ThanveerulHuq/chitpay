@@ -1,4 +1,4 @@
-# ChitApp — Technical Design
+# ChitPay — Technical Design
 
 Date: 2026-08-21
 Source: [Mobile-First Chit Group Management App — PRD](../../Mobile-First%20Chit%20Group%20Management%20App%20—%20PRD.md)

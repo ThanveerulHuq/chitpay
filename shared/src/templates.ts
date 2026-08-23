@@ -35,13 +35,13 @@ export function renderMessage(
   if (lang === 'ta') {
     switch (template) {
       case 'login_code':
-        return `உங்கள் ChitApp உள்நுழைவு OTP: ${v.loginCode}. இது 5 நிமிடங்களில் காலாவதியாகிவிடும்.`
+        return `உங்கள் ChitPay உள்நுழைவு OTP: ${v.loginCode}. இது 5 நிமிடங்களில் காலாவதியாகிவிடும்.`
       case 'login_link':
         return `வணக்கம் ${v.memberName},\n\nஇதோ ChitPay-க்கான உங்கள் உள்நுழைவு இணைப்பு.\n\nஉங்கள் குழுவைப் பார்க்க கீழே உள்ள லிங்க்கை கிளிக் செய்யவும்.`
       case 'member_invite':
         return (
-          `வணக்கம் ${v.memberName}! நீங்கள் ChitApp-ல் *${v.groupName}* குழுவில் சேர்க்கப்பட்டுள்ளீர்கள். ` +
-          `உங்கள் எண் மற்றும் கடவுச்சொல்லுடன் (${v.loginCode}) ${v.appUrl ?? 'https://chitapp.app'} தளத்தில் உள்நுழையவும்.`
+          `வணக்கம் ${v.memberName}! நீங்கள் ChitPay-ல் *${v.groupName}* குழுவில் சேர்க்கப்பட்டுள்ளீர்கள். ` +
+          `உங்கள் எண் மற்றும் கடவுச்சொல்லுடன் (${v.loginCode}) ${v.appUrl ?? 'https://chitpay.web.app'} தளத்தில் உள்நுழையவும்.`
         )
       case 'payment_reminder':
         return (
@@ -70,13 +70,13 @@ export function renderMessage(
 
   switch (template) {
     case 'login_code':
-      return `Your ChitApp verification code is ${v.loginCode}. It expires in 5 minutes.`
+      return `Your ChitPay verification code is ${v.loginCode}. It expires in 5 minutes.`
     case 'login_link':
-      return `Hi ${v.memberName}, here's your access link for Chitpay.\n\nTap the button below to see your group.`
+      return `Hi ${v.memberName}, here's your access link for ChitPay.\n\nTap the button below to see your group.`
     case 'member_invite':
       return (
-        `Hi ${v.memberName}! You've been added to *${v.groupName}* on ChitApp. ` +
-        `Login at ${v.appUrl ?? 'https://chitapp.app'} with your number and password: ${v.loginCode}`
+        `Hi ${v.memberName}! You've been added to *${v.groupName}* on ChitPay. ` +
+        `Login at ${v.appUrl ?? 'https://chitpay.web.app'} with your number and password: ${v.loginCode}`
       )
     case 'payment_reminder':
       return (
