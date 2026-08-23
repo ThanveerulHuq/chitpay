@@ -11,7 +11,7 @@ Prevent an admin from starting a cycle before the group has an active member, an
 - Cycle N can start only when every earlier cycle is `active` or `complete`.
 - A previous active cycle does not block the next cycle, so multiple cycles may remain active simultaneously.
 - Planned start dates remain informational and do not gate cycle starts.
-- Admins should see why an upcoming cycle is unavailable before attempting the action.
+- Admins should see member-required guidance when no active member exists. Later cycles that are waiting on earlier cycles remain disabled without an additional description.
 
 ## Backend enforcement
 
@@ -29,7 +29,7 @@ The ordering check happens in the same transaction as the status update, so conc
 Both the cycles list and an upcoming cycle's detail page derive the same availability rules from the loaded members and cycles:
 
 - With no active members, the start action is disabled and guidance asks the admin to add a member.
-- If an earlier cycle is still upcoming, the start action is disabled and guidance asks the admin to start the previous cycles first.
+- If an earlier cycle is still upcoming, the start action is disabled without an additional description.
 - When the rules are satisfied, the existing start action remains available.
 - Read-only and member views continue to hide start actions.
 
