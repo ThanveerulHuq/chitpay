@@ -4,10 +4,11 @@ import { Archive, ArrowCounterClockwise, ArrowLeft, FileText } from '@phosphor-i
 import { callArchiveGroup, callUnarchiveGroup, fetchCycles, fetchGroup, fetchGroupMembers } from '@/lib/api'
 import { formatMinor } from '@shared'
 import type { CycleDoc, GroupDoc, GroupMemberDoc } from '@shared'
-import { Page, Skeleton } from '@/components/ui'
+import { Button, Page, Skeleton } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { useAuth } from '@/lib/useAuth'
 import { useViewMode } from '@/lib/useViewMode'
+import { useBodyLock } from '@/lib/useBodyLock'
 
 export interface WorkspaceValue {
   groupId: string
@@ -41,6 +42,7 @@ export default function GroupShell({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [archiveBusy, setArchiveBusy] = useState(false)
   const [archiveError, setArchiveError] = useState<string | null>(null)
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
 
   const reload = useCallback(async () => {
     const [nextGroup, nextMembers, nextCycles] = await Promise.all([
@@ -82,11 +84,11 @@ export default function GroupShell({ children }: { children: ReactNode }) {
   )
 
   async function archive() {
-    if (!window.confirm(t('workspace.archiveConfirm'))) return
     setArchiveBusy(true)
     setArchiveError(null)
     try {
       await callArchiveGroup(groupId)
+      setArchiveConfirmOpen(false)
       await reload()
     } catch {
       setArchiveError(t('workspace.archiveError'))
@@ -162,23 +164,68 @@ export default function GroupShell({ children }: { children: ReactNode }) {
             </WorkspaceTab>
           </nav>
         </header>
-        {isAdmin && !isMemberView && (
-          <div className={`mt-4 flex items-center gap-3 rounded-2xl border p-3.5 ${isArchived ? 'border-line bg-sunken' : 'border-line/70 bg-surface'}`}>
+        {isAdmin && !isMemberView && isArchived && (
+          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-line bg-sunken p-3.5">
             <Archive size={20} weight="bold" className={isArchived ? 'shrink-0 text-muted' : 'shrink-0 text-faint'} />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">{isArchived ? t('workspace.archivedTitle') : t('workspace.archiveTitle')}</p>
-              <p className="text-xs text-muted">{isArchived ? t('workspace.archivedDesc') : t('workspace.archiveDesc')}</p>
+              <p className="text-sm font-semibold">{t('workspace.archivedTitle')}</p>
+              <p className="text-xs text-muted">{t('workspace.archivedDesc')}</p>
               {archiveError && <p role="alert" className="mt-1 text-xs text-danger">{archiveError}</p>}
             </div>
-            <button type="button" disabled={archiveBusy} onClick={() => void (isArchived ? unarchive() : archive())} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-accent-strong hover:bg-accent-soft disabled:opacity-40 dark:text-accent">
-              {isArchived ? <ArrowCounterClockwise size={16} weight="bold" /> : <Archive size={16} weight="bold" />}
-              {isArchived ? t('workspace.unarchiveAction') : t('workspace.archiveAction')}
+            <button type="button" disabled={archiveBusy} onClick={() => void unarchive()} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-accent-strong hover:bg-accent-soft disabled:opacity-40 dark:text-accent">
+              <ArrowCounterClockwise size={16} weight="bold" />
+              {t('workspace.unarchiveAction')}
             </button>
           </div>
         )}
         <div className="pt-4">{children}</div>
+        {isAdmin && !isMemberView && !isArchived && (
+          <section className="mt-12 border-t border-line pt-6">
+            {archiveError && <p role="alert" className="mb-3 text-sm text-danger">{archiveError}</p>}
+            <button
+              type="button"
+              onClick={() => { setArchiveError(null); setArchiveConfirmOpen(true) }}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-danger px-5 py-3 text-base font-semibold text-white transition-transform active:scale-[0.98] hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger dark:text-danger-soft"
+            >
+              <Archive size={18} weight="bold" />
+              {t('workspace.archiveAction')}
+            </button>
+          </section>
+        )}
       </Page>
+      {archiveConfirmOpen && (
+        <ArchiveConfirmationDialog
+          busy={archiveBusy}
+          error={archiveError}
+          onCancel={() => { if (!archiveBusy) setArchiveConfirmOpen(false) }}
+          onConfirm={() => void archive()}
+        />
+      )}
     </WorkspaceContext.Provider>
+  )
+}
+
+function ArchiveConfirmationDialog({ busy, error, onCancel, onConfirm }: { busy: boolean; error: string | null; onCancel: () => void; onConfirm: () => void }) {
+  const { t } = useI18n()
+  useBodyLock(true)
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={(event) => event.target === event.currentTarget && onCancel()}>
+      <section role="dialog" aria-modal="true" aria-labelledby="archive-confirm-title" aria-describedby="archive-confirm-description" className="w-full max-w-md rounded-3xl border border-line bg-surface p-5 shadow-2xl">
+        <div className="flex size-11 items-center justify-center rounded-2xl bg-danger-soft text-danger">
+          <Archive size={23} weight="bold" />
+        </div>
+        <h2 id="archive-confirm-title" className="mt-4 text-xl font-bold">{t('workspace.archiveModalTitle')}</h2>
+        <p id="archive-confirm-description" className="mt-2 text-sm leading-6 text-muted">{t('workspace.archiveConfirm')}</p>
+        {error && <p role="alert" className="mt-3 rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">{error}</p>}
+        <div className="mt-6 flex gap-3">
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={busy} className="flex-1">{t('common.cancel')}</Button>
+          <button type="button" onClick={onConfirm} disabled={busy} className="inline-flex flex-1 items-center justify-center rounded-2xl bg-danger px-4 py-3 font-semibold text-white hover:opacity-90 disabled:pointer-events-none disabled:opacity-40 dark:text-danger-soft">
+            {busy ? t('common.saving') : t('workspace.confirmArchive')}
+          </button>
+        </div>
+      </section>
+    </div>
   )
 }
 

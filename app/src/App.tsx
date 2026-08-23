@@ -15,6 +15,7 @@ const GroupCyclesPage = lazy(() => import('@/pages/admin/GroupCyclesPage'))
 const GroupCycleDetailPage = lazy(() => import('@/pages/admin/GroupCycleDetailPage'))
 const GroupReportsPage = lazy(() => import('@/pages/admin/GroupReportsPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+const ArchivedGroupsPage = lazy(() => import('@/pages/admin/ArchivedGroupsPage'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -117,6 +118,14 @@ export default function App() {
               <RequireAuth>
                 <SettingsPage />
               </RequireAuth>
+            }
+          />
+          <Route
+            path="/settings/archived-groups"
+            element={
+              <RequireAdmin>
+                <ArchivedGroupsPage />
+              </RequireAdmin>
             }
           />
           <Route path="/" element={<Navigate to="/groups" replace />} />
