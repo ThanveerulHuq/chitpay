@@ -180,14 +180,14 @@ export default function GroupShell({ children }: { children: ReactNode }) {
         )}
         <div className="pt-4">{children}</div>
         {isAdmin && !isMemberView && !isArchived && (
-          <section className="mt-12 border-t border-line pt-6">
+          <section className="mt-12 text-center">
             {archiveError && <p role="alert" className="mb-3 text-sm text-danger">{archiveError}</p>}
             <button
               type="button"
               onClick={() => { setArchiveError(null); setArchiveConfirmOpen(true) }}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-danger px-5 py-3 text-base font-semibold text-white transition-transform active:scale-[0.98] hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger dark:text-danger-soft"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-faint transition-colors hover:bg-sunken hover:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              <Archive size={18} weight="bold" />
+              <Archive size={16} />
               {t('workspace.archiveAction')}
             </button>
           </section>
