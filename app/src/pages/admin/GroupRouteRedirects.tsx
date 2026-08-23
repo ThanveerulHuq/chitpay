@@ -1,15 +1,14 @@
-import { Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Navigate, useParams } from 'react-router-dom'
+import { groupPath, useExperience } from '@/lib/roleRoutes'
 
 export function GroupRootRedirect() {
   const { groupId = '' } = useParams<{ groupId: string }>()
-  const [params] = useSearchParams()
-  const query = params.get('view') === 'member' ? '?view=member' : ''
-  return <Navigate to={`/groups/${groupId}/members${query}`} replace />
+  const experience = useExperience()
+  return <Navigate to={groupPath(experience, groupId)} replace />
 }
 
 export function GroupPaymentsRedirect() {
   const { groupId = '' } = useParams<{ groupId: string }>()
-  const [params] = useSearchParams()
-  const query = params.get('view') === 'member' ? '?view=member' : ''
-  return <Navigate to={`/groups/${groupId}/reports${query}`} replace />
+  const experience = useExperience()
+  return <Navigate to={groupPath(experience, groupId, 'reports')} replace />
 }

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, NavLink, useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { Link, NavLink, useLocation, useParams } from 'react-router-dom'
 import { FileText, Receipt } from '@phosphor-icons/react'
 import { fetchCycles, fetchGroup, fetchGroupMembers } from '@/lib/api'
 import { formatMinor } from '@shared'
@@ -7,8 +7,8 @@ import type { CycleDoc, GroupDoc, GroupMemberDoc } from '@shared'
 import { Page, Skeleton } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { useAuth } from '@/lib/useAuth'
-import { useViewMode } from '@/lib/useViewMode'
 import PaymentSheet from '@/components/PaymentSheet'
+import { groupPath, groupsPath, useExperience } from '@/lib/roleRoutes'
 
 export interface WorkspaceValue {
   groupId: string
@@ -17,7 +17,6 @@ export interface WorkspaceValue {
   cycles: { id: string; data: CycleDoc }[]
   reload: () => Promise<void>
   isReadOnly: boolean
-  isAdmin: boolean
 }
 
 const WorkspaceContext = createContext<WorkspaceValue | null>(null)
@@ -30,10 +29,9 @@ export function useGroupWorkspace() {
 
 export default function GroupShell({ children }: { children: ReactNode }) {
   const { groupId = '' } = useParams<{ groupId: string }>()
-  const [searchParams] = useSearchParams()
   const location = useLocation()
   const { isAdmin } = useAuth()
-  const { viewMode } = useViewMode()
+  const experience = useExperience()
   const { t } = useI18n()
   const [group, setGroup] = useState<{ id: string; data: GroupDoc } | null>(null)
   const [members, setMembers] = useState<{ id: string; data: GroupMemberDoc }[]>([])
@@ -69,11 +67,10 @@ export default function GroupShell({ children }: { children: ReactNode }) {
     }
   }, [groupId])
 
-  const isReadOnly = !isAdmin || searchParams.get('view') === 'member' || viewMode === 'member'
-  const query = isReadOnly ? '?view=member' : ''
+  const isReadOnly = experience === 'member' || !isAdmin
   const value = useMemo<WorkspaceValue | null>(
-    () => group ? ({ groupId, group: group.data, members, cycles, reload, isReadOnly, isAdmin }) : null,
-    [groupId, group, members, cycles, reload, isReadOnly, isAdmin],
+    () => group ? ({ groupId, group: group.data, members, cycles, reload, isReadOnly }) : null,
+    [groupId, group, members, cycles, reload, isReadOnly],
   )
 
   if (loading || !group || !value) {
@@ -91,11 +88,11 @@ export default function GroupShell({ children }: { children: ReactNode }) {
       <Page>
         <header className="sticky top-0 z-30 -mx-4 border-b border-line/60 bg-bg/95 px-4 pb-0 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
           <div className="flex items-center justify-between gap-3 pb-3">
-            <Link to="/groups" className="min-w-0 truncate text-xl font-bold tracking-tight">
+            <Link to={groupsPath(experience)} className="min-w-0 truncate text-xl font-bold tracking-tight">
               {group.data.name}
             </Link>
             <div className="flex shrink-0 items-center gap-1">
-              {isAdmin && group.data.currentCycleNumber > 0 && (
+              {!isReadOnly && group.data.currentCycleNumber > 0 && (
                 <button
                   type="button"
                   onClick={() => setPaymentOpen(true)}
@@ -106,7 +103,7 @@ export default function GroupShell({ children }: { children: ReactNode }) {
                 </button>
               )}
               <Link
-                to={`/groups/${groupId}/reports${query}`}
+                to={groupPath(experience, groupId, 'reports')}
                 className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-accent-strong hover:bg-accent-soft dark:text-accent"
               >
                 <FileText size={17} weight="bold" />
@@ -121,11 +118,11 @@ export default function GroupShell({ children }: { children: ReactNode }) {
             </strong>
           </p>
           <nav aria-label={t('workspace.tabs')} className="grid grid-cols-2 gap-1 pt-2">
-            <WorkspaceTab to={`/groups/${groupId}/members${query}`} active={location.pathname.endsWith('/members') || location.pathname === `/groups/${groupId}`}>
+            <WorkspaceTab to={groupPath(experience, groupId)} active={location.pathname.endsWith('/members')}>
               {t('workspace.membersTab')}{' '}
               <span className="text-xs tabular-nums text-faint">{group.data.memberCount}</span>
             </WorkspaceTab>
-            <WorkspaceTab to={`/groups/${groupId}/cycles${query}`} active={location.pathname.includes('/cycles')}>
+            <WorkspaceTab to={groupPath(experience, groupId, 'cycles')} active={location.pathname.includes('/cycles')}>
               {t('workspace.cyclesTab')}{' '}
               <span className="text-xs tabular-nums text-faint">
                 {Math.max(group.data.currentCycleNumber, 0)} / {group.data.durationMonths}

@@ -15,10 +15,12 @@ import LanguageToggle from '@/components/LanguageToggle'
 import { Page, PageHeader, Skeleton } from '@/components/ui'
 import { useT } from '@/i18n'
 import { useAuth } from '@/lib/useAuth'
+import { groupPath, groupsPath, useExperience } from '@/lib/roleRoutes'
 
 export default function GroupPaymentsPage() {
   const { groupId = '' } = useParams<{ groupId: string }>()
   const t = useT()
+  const experience = useExperience()
   const { isAdmin, loading: authLoading } = useAuth()
   const [group, setGroup] = useState<{ id: string; data: GroupDoc } | null>(null)
   const [rows, setRows] = useState<(PaymentRecord & { name?: string })[] | null>(null)
@@ -58,14 +60,14 @@ export default function GroupPaymentsPage() {
       </Page>
     )
   }
-  if (!isAdmin) return <Navigate to={`/groups/${groupId}`} replace />
-  if (!group) return <Navigate to="/groups" replace />
+  if (!isAdmin) return <Navigate to={groupPath('member', groupId)} replace />
+  if (!group) return <Navigate to={groupsPath(experience)} replace />
 
   return (
     <Page>
       <PageHeader
         title={t('payments.title')}
-        backTo={`/groups/${groupId}`}
+        backTo={groupPath(experience, groupId)}
         rightElement={<LanguageToggle />}
       />
 

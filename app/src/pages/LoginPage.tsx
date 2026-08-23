@@ -39,7 +39,7 @@ export default function LoginPage() {
     setBusy(true)
     try {
       await signInWithPassword(fullPhone, password)
-      window.location.replace('/groups')
+      window.location.replace('/')
     } catch (err) {
       setError(errMessage(err, lang))
     } finally {

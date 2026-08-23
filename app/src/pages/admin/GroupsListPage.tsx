@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Users, CalendarBlank, CurrencyInr, Gear, Receipt } from '@phosphor-icons/react'
 import { fetchGroup, fetchMyGroups, fetchMyMemberships } from '@/lib/api'
-import { useAuth } from '@/lib/useAuth'
 import { formatMinor } from '@shared'
 import type { GroupDoc, MembershipMirrorDoc } from '@shared'
 import { Chip, Page, Skeleton, Button } from '@/components/ui'
 import { useT } from '@/i18n'
-import { useViewMode } from '@/lib/useViewMode'
 import PaymentSheet from '@/components/PaymentSheet'
+import { groupPath, groupsPath, settingsPath, useExperience } from '@/lib/roleRoutes'
 
 type ListEntry =
   | { kind: 'admin'; id: string; name: string; amountMinor: number; currency: string; memberCount: number; cycleNumber: number; durationMonths: number }
@@ -16,8 +15,7 @@ type ListEntry =
 
 export default function GroupsListPage() {
   const t = useT()
-  const { isAdmin } = useAuth()
-  const { viewMode } = useViewMode()
+  const experience = useExperience()
   const [allEntries, setAllEntries] = useState<ListEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [paymentGroup, setPaymentGroup] = useState<{ id: string; data: GroupDoc } | null>(null)
@@ -27,8 +25,8 @@ export default function GroupsListPage() {
     let cancelled = false
     ;(async () => {
       const [adminGroups, memberships] = await Promise.all([
-        fetchMyGroups(),
-        fetchMyMemberships(),
+        experience === 'admin' ? fetchMyGroups() : Promise.resolve([]),
+        experience === 'member' ? fetchMyMemberships() : Promise.resolve([]),
       ])
       if (cancelled) return
 
@@ -58,9 +56,9 @@ export default function GroupsListPage() {
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [experience, refreshKey])
 
-  const entries = allEntries.filter((e) => isAdmin ? e.kind === viewMode : e.kind === 'member')
+  const entries = allEntries.filter((entry) => entry.kind === experience)
 
   return (
     <Page>
@@ -74,9 +72,9 @@ export default function GroupsListPage() {
           <h1 className="text-2xl font-bold tracking-tight">ChitPay</h1>
         </div>
         <div className="flex items-center gap-2">
-          {(!isAdmin || viewMode === 'admin') && (
+          {experience === 'admin' && (
             <Link
-              to="/groups/new"
+              to={`${groupsPath(experience)}/new`}
               className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition-transform active:scale-[0.98]"
             >
               <Plus size={16} weight="bold" />
@@ -84,7 +82,7 @@ export default function GroupsListPage() {
             </Link>
           )}
           <Link
-            to="/settings"
+            to={settingsPath(experience)}
             aria-label={t('settings.title')}
             className="rounded-full p-2 text-muted transition-colors hover:bg-sunken hover:text-ink"
           >
@@ -110,8 +108,8 @@ export default function GroupsListPage() {
           <p className="mt-1 max-w-[28ch] text-sm text-muted">
             {t('groups.emptyDesc')}
           </p>
-          {(!isAdmin || viewMode === 'admin') && (
-            <Link to="/groups/new" className="mt-5">
+          {experience === 'admin' && (
+            <Link to={`${groupsPath(experience)}/new`} className="mt-5">
               <Button>{t('groups.createFirst')}</Button>
             </Link>
           )}
@@ -124,7 +122,7 @@ export default function GroupsListPage() {
         {entries.map((entry) => (
           <li key={`${entry.kind}-${entry.id}`}>
             <div className="rounded-2xl border border-line bg-surface p-4 transition-colors hover:bg-sunken">
-              <Link to={`/groups/${entry.id}${entry.kind === 'member' ? '?view=member' : ''}`} className="block active:scale-[0.99] motion-safe:transition-transform">
+              <Link to={groupPath(experience, entry.id)} className="block active:scale-[0.99] motion-safe:transition-transform">
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 className="truncate font-semibold">{entry.name}</h2>
                   <span className="shrink-0 text-sm text-muted">
@@ -154,7 +152,7 @@ export default function GroupsListPage() {
                 )}
                 </div>
               </Link>
-              {entry.kind === 'admin' && viewMode === 'admin' && entry.cycleNumber > 0 && (
+              {entry.kind === 'admin' && experience === 'admin' && entry.cycleNumber > 0 && (
                 <button type="button" onClick={async () => { const group = await fetchGroup(entry.id); if (group) setPaymentGroup(group) }} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-accent/30 bg-accent-soft py-2.5 text-sm font-semibold text-accent-strong dark:text-accent">
                   <Receipt size={16} weight="bold" />
                   {t('workspace.recordPayment')}

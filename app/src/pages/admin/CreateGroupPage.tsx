@@ -4,10 +4,12 @@ import { callCreateGroup } from '@/lib/api'
 import { toMinor } from '@shared'
 import { Button, DateInput, ErrorNote, Field, Input, Page, PageHeader, Select, Textarea } from '@/components/ui'
 import { useT } from '@/i18n'
+import { groupPath, groupsPath, useExperience } from '@/lib/roleRoutes'
 
 export default function CreateGroupPage() {
   const t = useT()
   const navigate = useNavigate()
+  const experience = useExperience()
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
   const [durationMonths, setDurationMonths] = useState('')
@@ -33,7 +35,7 @@ export default function CreateGroupPage() {
         description: description || undefined,
         requirePaidToWin,
       })
-      navigate(`/groups/${groupId}`, { replace: true })
+      navigate(groupPath(experience, groupId), { replace: true })
     } catch (err) {
       setError((err as Error).message ?? t('createGroup.error'))
       setBusy(false)
@@ -44,7 +46,7 @@ export default function CreateGroupPage() {
     <Page>
       <PageHeader
         title={t('createGroup.title')}
-        backTo="/groups"
+        backTo={groupsPath(experience)}
       />
 
       {error && <ErrorNote>{error}</ErrorNote>}
@@ -140,4 +142,3 @@ export default function CreateGroupPage() {
     </Page>
   )
 }
-

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import {
   WhatsappLogo,
   X,
@@ -42,17 +42,14 @@ import {
   Textarea,
 } from '@/components/ui'
 import { useI18n, useT } from '@/i18n'
-import { useAuth } from '@/lib/useAuth'
-import { useViewMode } from '@/lib/useViewMode'
 import { useBodyLock } from '@/lib/useBodyLock'
+import { groupPath, groupsPath, useExperience } from '@/lib/roleRoutes'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
 export default function GroupDashboardPage() {
   const { groupId = '' } = useParams()
-  const [searchParams] = useSearchParams()
-  const { isAdmin } = useAuth()
-  const { viewMode } = useViewMode()
+  const experience = useExperience()
   const { t } = useI18n()
   const [group, setGroup] = useState<{ id: string; data: GroupDoc } | null>(null)
   const [members, setMembers] = useState<{ id: string; data: GroupMemberDoc }[]>([])
@@ -118,9 +115,7 @@ export default function GroupDashboardPage() {
     )
   }
 
-  // Members get a read-only view; admins get the management dashboard unless view=member is explicitly requested
-  const forceMemberView = searchParams.get('view') === 'member' || (isAdmin && viewMode === 'member')
-  if (forceMemberView || group.data.adminUid !== auth.currentUser?.uid) {
+  if (experience === 'member' || group.data.adminUid !== auth.currentUser?.uid) {
     return <MemberGroupView groupId={groupId} />
   }
 
@@ -130,7 +125,7 @@ export default function GroupDashboardPage() {
     <Page>
       <PageHeader
         title={g.name}
-        backTo="/groups"
+        backTo={groupsPath(experience)}
       />
 
       {/* Stats strip */}
@@ -150,7 +145,7 @@ export default function GroupDashboardPage() {
       />
 
       <a
-        href={`/groups/${groupId}/payments`}
+        href={groupPath(experience, groupId, 'reports')}
         className="mt-4 flex items-center justify-between rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-semibold hover:bg-sunken"
       >
         {t('dash.allPayments')}

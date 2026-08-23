@@ -3,10 +3,12 @@ import { Page, PageHeader, Button } from '@/components/ui'
 import { useAuth } from '@/lib/useAuth'
 import { useI18n } from '@/i18n'
 import type { Lang } from '@/i18n/types'
+import { groupsPath, useExperience } from '@/lib/roleRoutes'
 
 export default function SettingsPage() {
   const { lang, setLang, t } = useI18n()
   const { user, profile, logout, isAdmin } = useAuth()
+  const experience = useExperience()
 
   const languages: Array<{ code: Lang; label: string; subLabel: string }> = [
     { code: 'en', label: 'English', subLabel: 'English' },
@@ -17,7 +19,7 @@ export default function SettingsPage() {
 
   return (
     <Page>
-      <PageHeader title={t('settings.title')} backTo="/groups" />
+      <PageHeader title={t('settings.title')} backTo={groupsPath(experience)} />
 
       <div className="space-y-6">
         {/* Language Selection */}

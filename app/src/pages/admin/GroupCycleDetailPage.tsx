@@ -9,6 +9,7 @@ import PaymentSheet from '@/components/PaymentSheet'
 import { Button, Chip, ErrorNote } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { Link, useParams } from 'react-router-dom'
+import { groupPath, useExperience } from '@/lib/roleRoutes'
 
 export default function GroupCycleDetailPage() {
   return <GroupShell><CycleDetailContent /></GroupShell>
@@ -16,6 +17,7 @@ export default function GroupCycleDetailPage() {
 
 function CycleDetailContent() {
   const { t } = useI18n()
+  const experience = useExperience()
   const { cycleNumber: cycleParam } = useParams<{ cycleNumber: string }>()
   const { groupId, group, members, cycles, reload, isReadOnly } = useGroupWorkspace()
   const cycleNumber = Number(cycleParam)
@@ -59,7 +61,7 @@ function CycleDetailContent() {
   return (
     <>
       <div className="mb-3 flex items-center gap-2">
-        <Link to={`/groups/${groupId}/cycles${isReadOnly ? '?view=member' : ''}`} aria-label={t('common.back')} className="rounded-full p-1 text-muted hover:bg-sunken hover:text-ink"><ArrowLeft size={19} weight="bold" /></Link>
+        <Link to={groupPath(experience, groupId, 'cycles')} aria-label={t('common.back')} className="rounded-full p-1 text-muted hover:bg-sunken hover:text-ink"><ArrowLeft size={19} weight="bold" /></Link>
         <h1 className="text-lg font-bold">{t('workspace.month', { month: cycle.monthNumber })}</h1>
       </div>
       <div className="flex items-center justify-between gap-3">

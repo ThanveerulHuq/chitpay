@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useParams, useSearchParams } from 'react-router-dom'
 import LoginPage from '@/pages/LoginPage'
 import LoginLinkPage from '@/pages/LoginLinkPage'
 import GroupsListPage from '@/pages/admin/GroupsListPage'
@@ -12,109 +12,89 @@ import SettingsPage from '@/pages/SettingsPage'
 import OfflineBanner from '@/components/OfflineBanner'
 import InstallPrompt from '@/components/InstallPrompt'
 import { useAuth } from '@/lib/useAuth'
+import { groupsPath, type Experience } from '@/lib/roleRoutes'
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+function RequireAuth() {
   const { user, loading } = useAuth()
   if (loading) return <div className="flex min-h-dvh items-center justify-center text-faint">…</div>
   if (!user) return <Navigate to="/login" replace />
-  return <>{children}</>
+  return <Outlet />
 }
 
-function RequireAdmin({ children }: { children: React.ReactNode }) {
+function RequireAdmin() {
   const { user, loading, isAdmin } = useAuth()
   if (loading) return <div className="flex min-h-dvh items-center justify-center text-faint">…</div>
   if (!user) return <Navigate to="/login" replace />
-  if (!isAdmin) return <Navigate to="/groups" replace />
-  return <>{children}</>
+  if (!isAdmin) return <Navigate to="/member/groups" replace />
+  return <Outlet />
 }
 
-import { ViewModeProvider } from '@/lib/useViewMode'
 import BottomNav from '@/components/BottomNav'
+
+function RoleLanding() {
+  const { user, loading, isAdmin } = useAuth()
+  if (loading) return <div className="flex min-h-dvh items-center justify-center text-faint">…</div>
+  if (!user) return <Navigate to="/login" replace />
+  return <Navigate to={groupsPath(isAdmin ? 'admin' : 'member')} replace />
+}
+
+function LegacyGroupsRedirect() {
+  const { user, loading, isAdmin } = useAuth()
+  const { '*': rest = '' } = useParams()
+  const [searchParams] = useSearchParams()
+  if (loading) return <div className="flex min-h-dvh items-center justify-center text-faint">…</div>
+  if (!user) return <Navigate to="/login" replace />
+  const experience: Experience = searchParams.get('view') === 'member' ? 'member' : isAdmin ? 'admin' : 'member'
+  const suffix = rest ? `/${rest}` : ''
+  return <Navigate to={`${groupsPath(experience)}${suffix}`} replace />
+}
+
+function LegacySettingsRedirect() {
+  const { user, loading, isAdmin } = useAuth()
+  if (loading) return <div className="flex min-h-dvh items-center justify-center text-faint">…</div>
+  if (!user) return <Navigate to="/login" replace />
+  return <Navigate to={`/${isAdmin ? 'admin' : 'member'}/settings`} replace />
+}
 
 export default function App() {
   return (
-    <ViewModeProvider>
+    <>
       <OfflineBanner />
       <InstallPrompt />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/login/link/:id" element={<LoginLinkPage />} />
-        <Route
-          path="/groups"
-          element={
-            <RequireAuth>
-              <GroupsListPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/groups/new"
-          element={
-            <RequireAdmin>
-              <CreateGroupPage />
-            </RequireAdmin>
-          }
-        />
-        <Route
-          path="/groups/:groupId"
-          element={
-            <RequireAuth>
-              <GroupRootRedirect />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/groups/:groupId/members"
-          element={
-            <RequireAuth>
-              <GroupMembersPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/groups/:groupId/cycles"
-          element={
-            <RequireAuth>
-              <GroupCyclesPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/groups/:groupId/cycles/:cycleNumber"
-          element={
-            <RequireAuth>
-              <GroupCycleDetailPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/groups/:groupId/reports"
-          element={
-            <RequireAuth>
-              <GroupReportsPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/groups/:groupId/payments"
-          element={
-            <RequireAuth>
-              <GroupPaymentsRedirect />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <RequireAuth>
-              <SettingsPage />
-            </RequireAuth>
-          }
-        />
-        <Route path="/" element={<Navigate to="/groups" replace />} />
-        <Route path="*" element={<Navigate to="/groups" replace />} />
+        <Route path="/admin" element={<RequireAdmin />}>
+          <Route index element={<Navigate to="groups" replace />} />
+          <Route path="groups" element={<GroupsListPage />} />
+          <Route path="groups/new" element={<CreateGroupPage />} />
+          <Route path="groups/:groupId" element={<GroupRootRedirect />} />
+          <Route path="groups/:groupId/members" element={<GroupMembersPage />} />
+          <Route path="groups/:groupId/cycles" element={<GroupCyclesPage />} />
+          <Route path="groups/:groupId/cycles/:cycleNumber" element={<GroupCycleDetailPage />} />
+          <Route path="groups/:groupId/reports" element={<GroupReportsPage />} />
+          <Route path="groups/:groupId/payments" element={<GroupPaymentsRedirect />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="groups" replace />} />
+        </Route>
+        <Route path="/member" element={<RequireAuth />}>
+          <Route index element={<Navigate to="groups" replace />} />
+          <Route path="groups" element={<GroupsListPage />} />
+          <Route path="groups/:groupId" element={<GroupRootRedirect />} />
+          <Route path="groups/:groupId/members" element={<GroupMembersPage />} />
+          <Route path="groups/:groupId/cycles" element={<GroupCyclesPage />} />
+          <Route path="groups/:groupId/cycles/:cycleNumber" element={<GroupCycleDetailPage />} />
+          <Route path="groups/:groupId/reports" element={<GroupReportsPage />} />
+          <Route path="groups/:groupId/payments" element={<GroupPaymentsRedirect />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="groups" replace />} />
+        </Route>
+        <Route path="/groups/*" element={<LegacyGroupsRedirect />} />
+        <Route path="/settings" element={<LegacySettingsRedirect />} />
+        <Route path="/" element={<RoleLanding />} />
+        <Route path="*" element={<RoleLanding />} />
       </Routes>
       <BottomNav />
-    </ViewModeProvider>
+    </>
   )
 }

@@ -7,7 +7,6 @@ import {
 import { httpsCallable } from 'firebase/functions'
 import { normalizePhone } from '@shared'
 import { auth, functions } from './firebase'
-import { resetSessionViewMode } from './viewMode'
 
 const LOGIN_EMAIL_STORAGE_KEY = 'chitapp_login_email'
 
@@ -51,7 +50,6 @@ export async function verifyLoginLink(payload: string, phone?: string): Promise<
     }
   }
   if (!email) throw new Error('login_phone_required')
-  resetSessionViewMode()
   await signInWithEmailLink(auth, email, firebaseLink)
   try {
     localStorage.removeItem(LOGIN_EMAIL_STORAGE_KEY)
@@ -75,7 +73,6 @@ export async function verifyOtp(phone: string, code: string): Promise<void> {
     'verifyOtp',
   )
   const res = await call({ phone: normalizePhone(phone), code })
-  resetSessionViewMode()
   await signInWithCustomToken(auth, res.data.token)
   await syncRoles()
 }
@@ -93,7 +90,6 @@ export async function signInWithPassword(
   phone: string,
   password: string,
 ): Promise<void> {
-  resetSessionViewMode()
   await signInWithEmailAndPassword(auth, syntheticEmail(phone), password)
   await syncRoles()
 }

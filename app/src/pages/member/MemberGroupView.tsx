@@ -17,11 +17,13 @@ import DateRangeFields from '@/components/DateRangeFields'
 import PaymentHistoryList from '@/components/PaymentHistoryList'
 import { useT } from '@/i18n'
 import { PaymentMethodIcon } from '@/pages/admin/GroupDashboardPage'
+import { groupsPath, useExperience } from '@/lib/roleRoutes'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
 export default function MemberGroupView({ groupId }: { groupId: string }) {
   const t = useT()
+  const experience = useExperience()
   const [group, setGroup] = useState<{ id: string; data: GroupDoc } | null>(null)
   const [cycle, setCycle] = useState<CycleDoc | null>(null)
   const [board, setBoard] = useState<BoardEntry[] | null>(null)
@@ -83,7 +85,7 @@ export default function MemberGroupView({ groupId }: { groupId: string }) {
     <Page>
       <PageHeader
         title={g.name}
-        backTo="/groups"
+        backTo={groupsPath(experience)}
       />
       {g.description && <p className="-mt-3 mb-5 text-sm text-muted">{g.description}</p>}
 
@@ -193,4 +195,3 @@ function Stat({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
-

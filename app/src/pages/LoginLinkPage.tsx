@@ -20,7 +20,7 @@ export default function LoginLinkPage() {
     if (status !== 'checking' || started.current) return
     started.current = true
     verifyLoginLink(id)
-      .then(() => navigate('/groups', { replace: true }))
+      .then(() => navigate('/', { replace: true }))
       .catch(() => setStatus('failed'))
   }, [id, navigate, status])
 
@@ -30,7 +30,7 @@ export default function LoginLinkPage() {
     setPhoneError(false)
     try {
       await verifyLoginLink(id, `+91${phone}`)
-      navigate('/groups', { replace: true })
+      navigate('/', { replace: true })
     } catch {
       setPhoneError(true)
     } finally {
