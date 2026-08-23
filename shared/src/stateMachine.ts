@@ -1,11 +1,8 @@
 import type { CycleStatus } from './types.js'
 
 const TRANSITIONS: Record<CycleStatus, CycleStatus[]> = {
-  upcoming: ['payment_open'],
-  payment_open: ['collection_complete', 'recipient_selected'],
-  collection_complete: ['recipient_selected'],
-  recipient_selected: ['payout_recorded'],
-  payout_recorded: ['complete'],
+  upcoming: ['active'],
+  active: ['complete'],
   complete: [],
 }
 

@@ -1,0 +1,56 @@
+import type { CycleFrequency } from './types.js'
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+function parseIsoDate(iso: string): { year: number; month: number; day: number } {
+  if (!ISO_DATE.test(iso)) throw new Error('Invalid start date.')
+  const [year, month, day] = iso.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new Error('Invalid start date.')
+  }
+  return { year, month, day }
+}
+
+function formatUtc(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
+function addDays(iso: string, days: number): string {
+  const { year, month, day } = parseIsoDate(iso)
+  return formatUtc(new Date(Date.UTC(year, month - 1, day + days)))
+}
+
+export function addMonthsClamped(iso: string, months: number): string {
+  const { year, month, day } = parseIsoDate(iso)
+  const anchor = new Date(Date.UTC(year, month - 1 + months, 1))
+  const daysInMonth = new Date(
+    Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0),
+  ).getUTCDate()
+  anchor.setUTCDate(Math.min(day, daysInMonth))
+  return formatUtc(anchor)
+}
+
+export function generateCycleSchedule(
+  startDate: string,
+  frequency: CycleFrequency,
+  cycleCount: number,
+): string[] {
+  parseIsoDate(startDate)
+  if (!Number.isInteger(cycleCount) || cycleCount < 1) {
+    throw new Error('Cycle count must be a positive integer.')
+  }
+  if (!['weekly', 'biweekly', 'monthly'].includes(frequency)) {
+    throw new Error('Invalid cycle frequency.')
+  }
+
+  return Array.from({ length: cycleCount }, (_, index) => {
+    if (frequency === 'weekly') return addDays(startDate, index * 7)
+    if (frequency === 'biweekly') return addDays(startDate, index * 14)
+    return addMonthsClamped(startDate, index)
+  })
+}

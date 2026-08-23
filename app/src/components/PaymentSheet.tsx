@@ -89,7 +89,7 @@ export default function PaymentSheet({
         <div className="flex shrink-0 items-start justify-between border-b border-line/60 p-5 pb-4">
           <div>
             <h2 className="text-lg font-bold">{t('workspace.recordPayment')}</h2>
-            <p className="text-sm text-muted">{t('workspace.monthAmount', { amount: formatMinor(group.monthlyAmountMinor, group.currency), month: cycleNumber })}</p>
+            <p className="text-sm text-muted">{t('workspace.cycleAmount', { amount: formatMinor(group.contributionAmountMinor, group.currency), cycle: cycleNumber })}</p>
           </div>
           <button type="button" onClick={onClose} aria-label={t('common.close')} className="rounded-full p-1.5 text-muted hover:bg-sunken hover:text-ink">
             <X size={20} weight="bold" />
@@ -122,7 +122,7 @@ export default function PaymentSheet({
                 <div className="rounded-2xl bg-sunken px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-semibold">{selected.name}</span>
-                    <span className="font-semibold tabular-nums">{formatMinor(group.monthlyAmountMinor, group.currency)}</span>
+                    <span className="font-semibold tabular-nums">{formatMinor(group.contributionAmountMinor, group.currency)}</span>
                   </div>
                 </div>
               )}

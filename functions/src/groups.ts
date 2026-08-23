@@ -4,19 +4,20 @@ import { FieldValue } from 'firebase-admin/firestore'
 import {
   AppError,
   generateMemberPassword,
+  generateCycleSchedule,
   normalizePhone,
 } from '@chitapp/shared'
-import type { BoardDoc, BoardEntry, GroupDoc, PaymentDoc } from '@chitapp/shared'
+import type { BoardDoc, BoardEntry, CycleDoc, CycleFrequency, GroupDoc, PaymentDoc } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
 import { syntheticEmail, assertAdminAccess } from './auth.js'
 
 
 interface CreateGroupInput {
   name: string
-  monthlyAmountMinor: number
+  contributionAmountMinor: number
   currency: string
-  dueDay: number
-  durationMonths: number
+  frequency: CycleFrequency
+  cycleCount: number
   startDate: string
   description?: string
   requirePaidToWin: boolean
@@ -46,40 +47,67 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
     const input = req.data as CreateGroupInput
 
     const name = String(input.name ?? '').trim()
-    const monthlyAmountMinor = Math.floor(Number(input.monthlyAmountMinor))
-    const dueDay = Math.floor(Number(input.dueDay))
-    const durationMonths = Math.floor(Number(input.durationMonths))
+    const contributionAmountMinor = Math.floor(Number(input.contributionAmountMinor))
+    const frequency = input.frequency as CycleFrequency
+    const cycleCount = Math.floor(Number(input.cycleCount))
     const startDate = String(input.startDate ?? '')
 
     if (!name) throw new AppError('invalid_argument', 'Group name is required.')
-    if (!(monthlyAmountMinor > 0)) throw new AppError('invalid_argument', 'Invalid contribution.')
-    if (!(dueDay >= 1 && dueDay <= 28)) throw new AppError('invalid_argument', 'Due day must be 1–28.')
-    if (!(durationMonths >= 1)) throw new AppError('invalid_argument', 'Invalid duration.')
+    if (!(contributionAmountMinor > 0)) throw new AppError('invalid_argument', 'Invalid contribution.')
+    if (!['weekly', 'biweekly', 'monthly'].includes(frequency)) {
+      throw new AppError('invalid_argument', 'Invalid cycle frequency.')
+    }
+    if (!(cycleCount >= 1 && cycleCount <= 100)) {
+      throw new AppError('invalid_argument', 'Cycle count must be between 1 and 100.')
+    }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) throw new AppError('invalid_argument', 'Invalid start date.')
+    let schedule: string[]
+    try {
+      schedule = generateCycleSchedule(startDate, frequency, cycleCount)
+    } catch {
+      throw new AppError('invalid_argument', 'Invalid cycle schedule.')
+    }
 
     const group: GroupDoc = {
       adminUid: uid,
       name,
-      monthlyAmountMinor,
+      contributionAmountMinor,
       currency: String(input.currency ?? 'INR'),
-      dueDay,
-      durationMonths,
+      frequency,
+      cycleCount,
       startDate,
       description: input.description?.trim() || undefined,
       requirePaidToWin: Boolean(input.requirePaidToWin),
       status: 'active',
-      currentCycleNumber: 0,
       memberCount: 0,
-      paidCount: 0,
-      collectedAmountMinor: 0,
-      financialSummaryVersion: 1,
+      activeCycleCount: 0,
+      completedCycleCount: 0,
       createdAt: FieldValue.serverTimestamp() as unknown as number,
     }
 
-    const ref = await db.collection('groups').add(group)
+    const ref = db.collection('groups').doc()
+    const batch = db.batch()
+    batch.set(ref, group)
+    schedule.forEach((plannedStartDate, index) => {
+      const cycle: CycleDoc = {
+        cycleNumber: index + 1,
+        plannedStartDate,
+        startedAt: null,
+        completedAt: null,
+        status: 'upcoming',
+        expectedPaymentCount: 0,
+        recipientMembershipId: null,
+        payout: { amountMinor: 0, status: 'pending', paidAt: null, recordedBy: null },
+        paidCount: 0,
+        collectedAmountMinor: 0,
+        createdAt: FieldValue.serverTimestamp() as unknown as number,
+      }
+      batch.set(ref.collection('cycles').doc(String(index + 1)), cycle)
+    })
     // Admin gets the same groupAccess marker members get, so security rules
     // (which rely on marker exists() checks) authorize admin reads too.
-    await db.doc(`users/${uid}/groupAccess/${ref.id}`).set({ membershipIds: [] })
+    batch.set(db.doc(`users/${uid}/groupAccess/${ref.id}`), { membershipIds: [] })
+    await batch.commit()
     return { groupId: ref.id }
   } catch (err) {
     throw toHttpsError(err, { fn: 'createGroup', uid: req.auth?.uid, data: req.data })
@@ -100,6 +128,9 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
     const input = req.data as AddMemberInput
 
     const group = await assertAdminOf(req.auth, String(input.groupId ?? ''))
+    if ((group.completedCycleCount ?? 0) > 0) {
+      throw new AppError('invalid_transition', 'Members are locked after the first completed cycle.')
+    }
     const name = String(input.name ?? '').trim()
     const phone = normalizePhone(String(input.phone ?? ''))
     if (!name) throw new AppError('invalid_argument', 'Member name is required.')
@@ -154,13 +185,17 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       const slotNo = memberCount + 1
       const memberRef = groupRef.collection('members').doc()
       const membershipId = memberRef.id
-      let currentBoard: BoardDoc | undefined
-      if (group.currentCycleNumber > 0) {
-        const boardSnap = await tx.get(
-          groupRef.collection('cycles').doc(String(group.currentCycleNumber)).collection('board').doc('board'),
-        )
-        currentBoard = boardSnap.data() as BoardDoc | undefined
+      const currentGroup = snap.data() as GroupDoc
+      if ((currentGroup.completedCycleCount ?? 0) > 0) {
+        throw new AppError('invalid_transition', 'Members are locked after the first completed cycle.')
       }
+      const activeCyclesSnap = await tx.get(
+        groupRef.collection('cycles').where('status', '==', 'active'),
+      )
+      const activeBoards = await Promise.all(activeCyclesSnap.docs.map(async (cycleSnap) => {
+        const boardSnap = await tx.get(cycleSnap.ref.collection('board').doc('board'))
+        return { cycleSnap, board: boardSnap.data() as BoardDoc | undefined }
+      }))
 
       tx.set(memberRef, {
         uid,
@@ -174,12 +209,12 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       })
       tx.update(groupRef, { memberCount: FieldValue.increment(1) })
 
-      // A member added after a cycle starts joins that cycle as a pending slot.
-      if (group.currentCycleNumber > 0) {
-        const cycleRef = groupRef.collection('cycles').doc(String(group.currentCycleNumber))
+      // Before the first completion, a new member joins every active cycle.
+      for (const { cycleSnap, board } of activeBoards) {
+        const cycleRef = cycleSnap.ref
         const boardRef = cycleRef.collection('board').doc('board')
         tx.set(cycleRef.collection('payments').doc(membershipId), {
-          amountMinor: group.monthlyAmountMinor,
+          amountMinor: currentGroup.contributionAmountMinor,
           status: 'pending',
           method: null,
           referenceNo: null,
@@ -188,10 +223,11 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
           recordedBy: null,
           updatedAt: null,
         } satisfies PaymentDoc)
-        if (currentBoard) {
+        if (board) {
           const entry: BoardEntry = { membershipId, name, status: 'pending', method: null }
-          tx.set(boardRef, { entries: [...currentBoard.entries, entry] } satisfies BoardDoc)
+          tx.set(boardRef, { entries: [...board.entries, entry] } satisfies BoardDoc)
         }
+        tx.update(cycleRef, { expectedPaymentCount: FieldValue.increment(1) })
       }
 
       // member-side mirrors
@@ -199,10 +235,9 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
         groupId: input.groupId,
         groupName: group.name,
         membershipId,
-        monthlyAmountMinor: group.monthlyAmountMinor,
+        contributionAmountMinor: currentGroup.contributionAmountMinor,
         currency: group.currency,
         status: 'active',
-        myPaymentStatus: null,
         selectedInCycle: null,
         joinedAt: FieldValue.serverTimestamp(),
       })

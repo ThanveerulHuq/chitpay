@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, FileText, Receipt } from '@phosphor-icons/react'
+import { ArrowLeft, FileText } from '@phosphor-icons/react'
 import { fetchCycles, fetchGroup, fetchGroupMembers } from '@/lib/api'
 import { formatMinor } from '@shared'
 import type { CycleDoc, GroupDoc, GroupMemberDoc } from '@shared'
@@ -8,7 +8,6 @@ import { Page, Skeleton } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { useAuth } from '@/lib/useAuth'
 import { useViewMode } from '@/lib/useViewMode'
-import PaymentSheet from '@/components/PaymentSheet'
 
 export interface WorkspaceValue {
   groupId: string
@@ -39,7 +38,6 @@ export default function GroupShell({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<{ id: string; data: GroupMemberDoc }[]>([])
   const [cycles, setCycles] = useState<{ id: string; data: CycleDoc }[]>([])
   const [loading, setLoading] = useState(true)
-  const [paymentOpen, setPaymentOpen] = useState(false)
 
   const reload = useCallback(async () => {
     const [nextGroup, nextMembers, nextCycles] = await Promise.all([
@@ -104,16 +102,6 @@ export default function GroupShell({ children }: { children: ReactNode }) {
               <h1 className="truncate text-xl font-bold tracking-tight">{group.data.name}</h1>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              {isAdmin && group.data.currentCycleNumber > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setPaymentOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-sm font-semibold text-accent-strong hover:bg-accent-soft/70 dark:text-accent"
-                >
-                  <Receipt size={17} weight="bold" />
-                  {t('workspace.paymentAction')}
-                </button>
-              )}
               <Link
                 to={`/groups/${groupId}/reports${query}`}
                 className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-accent-strong hover:bg-accent-soft dark:text-accent"
@@ -124,9 +112,9 @@ export default function GroupShell({ children }: { children: ReactNode }) {
             </div>
           </div>
           <p className="pb-2 text-sm text-muted">
-            {t('workspace.perMonth')}{' '}
+            {t('workspace.contribution')}{' '}
             <strong className="font-bold text-ink tabular-nums">
-              {formatMinor(group.data.monthlyAmountMinor, group.data.currency)}
+              {formatMinor(group.data.contributionAmountMinor, group.data.currency)}
             </strong>
           </p>
           <nav aria-label={t('workspace.tabs')} className="grid grid-cols-2 gap-1 pt-2">
@@ -137,24 +125,12 @@ export default function GroupShell({ children }: { children: ReactNode }) {
             <WorkspaceTab to={`/groups/${groupId}/cycles${query}`} active={location.pathname.includes('/cycles')}>
               {t('workspace.cyclesTab')}{' '}
               <span className="text-xs tabular-nums text-faint">
-                {Math.max(group.data.currentCycleNumber, 0)} / {group.data.durationMonths}
+                {group.data.completedCycleCount} / {group.data.cycleCount}
               </span>
             </WorkspaceTab>
           </nav>
         </header>
         <div className="pt-4">{children}</div>
-        {paymentOpen && group.data.currentCycleNumber > 0 && (
-          <PaymentSheet
-            groupId={groupId}
-            group={group.data}
-            cycleNumber={group.data.currentCycleNumber}
-            onClose={() => setPaymentOpen(false)}
-            onDone={() => {
-              setPaymentOpen(false)
-              void reload()
-            }}
-          />
-        )}
       </Page>
     </WorkspaceContext.Provider>
   )

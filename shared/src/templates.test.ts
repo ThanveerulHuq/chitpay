@@ -10,11 +10,11 @@ const vars = {
 
 describe('message templates', () => {
   describe('English', () => {
-    it('renders payment reminder with due date', () => {
-      const msg = renderMessage('payment_reminder', { ...vars, dueDate: '21 Aug 2026' })
+    it('renders a cycle payment reminder without a due date', () => {
+      const msg = renderMessage('payment_reminder', vars)
       expect(msg).toContain('Farhan')
       expect(msg).toContain('₹10,000')
-      expect(msg).toContain('21 Aug 2026')
+      expect(msg).toContain('cycle contribution')
     })
 
     it('renders recipient notification with pool amount', () => {
@@ -47,7 +47,7 @@ describe('message templates', () => {
     })
 
     it('never leaks other members into messages', () => {
-      const msg = renderMessage('overdue_reminder', { ...vars, dueDate: '21 Aug 2026' })
+      const msg = renderMessage('payment_reminder', vars)
       expect(msg).not.toMatch(/password/i)
     })
   })
@@ -73,17 +73,10 @@ describe('message templates', () => {
     })
 
     it('renders payment reminder in Tamil', () => {
-      const msg = renderMessage('payment_reminder', { ...vars, dueDate: '21 Aug 2026' }, 'ta')
+      const msg = renderMessage('payment_reminder', vars, 'ta')
       expect(msg).toContain('Farhan')
       expect(msg).toContain('₹10,000')
-      expect(msg).toContain('21 Aug 2026 அன்று')
-    })
-
-    it('renders overdue reminder in Tamil', () => {
-      const msg = renderMessage('overdue_reminder', { ...vars, dueDate: '21 Aug 2026' }, 'ta')
-      expect(msg).toContain('Farhan')
-      expect(msg).toContain('₹10,000')
-      expect(msg).toContain('கடைசி தேதி: 21 Aug 2026')
+      expect(msg).toContain('சுற்று சந்தா')
     })
 
     it('renders recipient notification in Tamil', () => {

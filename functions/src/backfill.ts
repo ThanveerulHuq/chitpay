@@ -49,10 +49,6 @@ export const backfillFinancialSummaries = onCall(
         cycleTotals.set(cycleDoc.id, total)
       }
 
-      const currentTotals = cycleTotals.get(String(group.currentCycleNumber)) ?? {
-        paidCount: 0,
-        collectedAmountMinor: 0,
-      }
       if (!input.dryRun) {
         let batch = db.batch()
         let writes = 0
@@ -77,12 +73,6 @@ export const backfillFinancialSummaries = onCall(
           writes += 1
           if (writes === 450) await commit()
         }
-        batch.update(groupRef, {
-          paidCount: currentTotals.paidCount,
-          collectedAmountMinor: currentTotals.collectedAmountMinor,
-          financialSummaryVersion: 1,
-        })
-        writes += 1
         await commit()
       }
 
@@ -91,8 +81,6 @@ export const backfillFinancialSummaries = onCall(
         dryRun: Boolean(input.dryRun),
         members: memberTotals.size,
         cycles: cycleTotals.size,
-        currentPaidCount: currentTotals.paidCount,
-        currentCollectedAmountMinor: currentTotals.collectedAmountMinor,
       }
     } catch (err) {
       throw toHttpsError(err, {
