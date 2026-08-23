@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Bell, Plus, Trophy } from '@phosphor-icons/react'
+import { Bell, Plus, Trophy } from '@phosphor-icons/react'
 import { callSendReminder, fetchBoard } from '@/lib/api'
 import type { BoardEntry } from '@shared'
 import { formatMinor } from '@shared'
@@ -8,7 +8,7 @@ import GroupShell, { useGroupWorkspace } from './GroupShell'
 import PaymentSheet from '@/components/PaymentSheet'
 import { Button, Chip, ErrorNote } from '@/components/ui'
 import { useI18n } from '@/i18n'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
 export default function GroupCycleDetailPage() {
   return <GroupShell><CycleDetailContent /></GroupShell>
@@ -58,10 +58,7 @@ function CycleDetailContent() {
 
   return (
     <>
-      <div className="mb-3 flex items-center gap-2">
-        <Link to={`/groups/${groupId}/cycles${isReadOnly ? '?view=member' : ''}`} aria-label={t('common.back')} className="rounded-full p-1 text-muted hover:bg-sunken hover:text-ink"><ArrowLeft size={19} weight="bold" /></Link>
-        <h1 className="text-lg font-bold">{t('workspace.month', { month: cycle.monthNumber })}</h1>
-      </div>
+      <h1 className="mb-3 text-lg font-bold">{t('workspace.month', { month: cycle.monthNumber })}</h1>
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-muted">{t('workspace.dueDate', { date: cycle.dueDate })}</p>

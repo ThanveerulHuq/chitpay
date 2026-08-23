@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useParams, useSearchParams } from 'react-router-dom'
-import { FileText, Receipt } from '@phosphor-icons/react'
+import { ArrowLeft, FileText, Receipt } from '@phosphor-icons/react'
 import { fetchCycles, fetchGroup, fetchGroupMembers } from '@/lib/api'
 import { formatMinor } from '@shared'
 import type { CycleDoc, GroupDoc, GroupMemberDoc } from '@shared'
@@ -71,6 +71,8 @@ export default function GroupShell({ children }: { children: ReactNode }) {
 
   const isReadOnly = !isAdmin || searchParams.get('view') === 'member' || viewMode === 'member'
   const query = isReadOnly ? '?view=member' : ''
+  const isCycleDetail = /^\/groups\/[^/]+\/cycles\/[^/]+$/.test(location.pathname)
+  const backTo = isCycleDetail ? `/groups/${groupId}/cycles${query}` : `/groups${query}`
   const value = useMemo<WorkspaceValue | null>(
     () => group ? ({ groupId, group: group.data, members, cycles, reload, isReadOnly, isAdmin }) : null,
     [groupId, group, members, cycles, reload, isReadOnly, isAdmin],
@@ -91,9 +93,16 @@ export default function GroupShell({ children }: { children: ReactNode }) {
       <Page>
         <header className="sticky top-0 z-30 -mx-4 border-b border-line/60 bg-bg/95 px-4 pb-0 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
           <div className="flex items-center justify-between gap-3 pb-3">
-            <Link to="/groups" className="min-w-0 truncate text-xl font-bold tracking-tight">
-              {group.data.name}
-            </Link>
+            <div className="flex min-w-0 items-center gap-2">
+              <Link
+                to={backTo}
+                aria-label={t('common.back')}
+                className="shrink-0 rounded-full p-1 text-muted hover:bg-sunken hover:text-ink"
+              >
+                <ArrowLeft size={20} weight="bold" />
+              </Link>
+              <h1 className="truncate text-xl font-bold tracking-tight">{group.data.name}</h1>
+            </div>
             <div className="flex shrink-0 items-center gap-1">
               {isAdmin && group.data.currentCycleNumber > 0 && (
                 <button
