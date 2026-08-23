@@ -417,6 +417,10 @@ export const editPayment = onCall({ region: 'asia-south1', invoker: 'public' }, 
         throw new AppError('invalid_transition', 'Only recorded payments can be edited.')
       }
 
+      const boardRef = cycleRef.collection('board').doc('board')
+      const boardSnap = await tx.get(boardRef)
+      const board = boardSnap.data() as BoardDoc | undefined
+
       const now = FieldValue.serverTimestamp() as unknown as number
       const nextPayment: PaymentDoc = {
         ...payment,
@@ -427,9 +431,6 @@ export const editPayment = onCall({ region: 'asia-south1', invoker: 'public' }, 
       }
       tx.set(paymentRef, nextPayment)
 
-      const boardRef = cycleRef.collection('board').doc('board')
-      const boardSnap = await tx.get(boardRef)
-      const board = boardSnap.data() as BoardDoc | undefined
       if (board) {
         tx.set(boardRef, {
           entries: board.entries.map((entry) =>
@@ -495,6 +496,10 @@ export const reversePayment = onCall({ region: 'asia-south1', invoker: 'public' 
         throw new AppError('invalid_transition', 'This payment is not currently recorded.')
       }
 
+      const boardRef = cycleRef.collection('board').doc('board')
+      const boardSnap = await tx.get(boardRef)
+      const board = boardSnap.data() as BoardDoc | undefined
+
       const now = FieldValue.serverTimestamp() as unknown as number
       const nextPayment: PaymentDoc = {
         amountMinor: payment.amountMinor,
@@ -508,9 +513,6 @@ export const reversePayment = onCall({ region: 'asia-south1', invoker: 'public' 
       }
       tx.set(paymentRef, nextPayment)
 
-      const boardRef = cycleRef.collection('board').doc('board')
-      const boardSnap = await tx.get(boardRef)
-      const board = boardSnap.data() as BoardDoc | undefined
       if (board) {
         tx.set(boardRef, {
           entries: board.entries.map((entry) =>
