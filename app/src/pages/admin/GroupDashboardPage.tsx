@@ -120,7 +120,7 @@ export default function GroupDashboardPage() {
 
   // Members get a read-only view; admins get the management dashboard unless view=member is explicitly requested
   const forceMemberView = searchParams.get('view') === 'member' || (isAdmin && viewMode === 'member')
-  if (forceMemberView || (group.data.adminUid !== auth.currentUser?.uid && !isAdmin)) {
+  if (forceMemberView || group.data.adminUid !== auth.currentUser?.uid) {
     return <MemberGroupView groupId={groupId} />
   }
 
@@ -613,7 +613,7 @@ function securePick<T>(items: T[]): T {
   return items[rand[0] % items.length]!
 }
 
-function PayoutSection({
+export function PayoutSection({
   groupId,
   recipientName,
   poolAmountMinor,
@@ -763,7 +763,7 @@ function HistorySection({
   )
 }
 
-function SelectionSection({
+export function SelectionSection({
   groupId,
   group,
   cycle,
@@ -965,7 +965,7 @@ function SelectionSection({
   )
 }
 
-function AddMemberSection({
+export function AddMemberSection({
   groupId,
   onAdded,
 }: {

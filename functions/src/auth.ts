@@ -24,7 +24,7 @@ export function syntheticEmail(phone: string): string {
 export function assertAdminAccess(auth: any, group: GroupDoc | { adminUid: string }) {
   if (!auth) throw new AppError('unauthenticated')
   const isAdminRole = Array.isArray(auth.token?.roles) && auth.token.roles.includes('admin')
-  if (group.adminUid !== auth.uid && !isAdminRole) {
+  if (group.adminUid !== auth.uid || !isAdminRole) {
     throw new AppError('permission_denied')
   }
 }

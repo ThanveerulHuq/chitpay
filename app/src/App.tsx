@@ -3,8 +3,11 @@ import LoginPage from '@/pages/LoginPage'
 import LoginLinkPage from '@/pages/LoginLinkPage'
 import GroupsListPage from '@/pages/admin/GroupsListPage'
 import CreateGroupPage from '@/pages/admin/CreateGroupPage'
-import GroupDashboardPage from '@/pages/admin/GroupDashboardPage'
-import GroupPaymentsPage from '@/pages/admin/GroupPaymentsPage'
+import GroupMembersPage from '@/pages/admin/GroupMembersPage'
+import GroupCyclesPage from '@/pages/admin/GroupCyclesPage'
+import GroupCycleDetailPage from '@/pages/admin/GroupCycleDetailPage'
+import GroupReportsPage from '@/pages/admin/GroupReportsPage'
+import { GroupPaymentsRedirect, GroupRootRedirect } from '@/pages/admin/GroupRouteRedirects'
 import SettingsPage from '@/pages/SettingsPage'
 import OfflineBanner from '@/components/OfflineBanner'
 import InstallPrompt from '@/components/InstallPrompt'
@@ -56,7 +59,39 @@ export default function App() {
           path="/groups/:groupId"
           element={
             <RequireAuth>
-              <GroupDashboardPage />
+              <GroupRootRedirect />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/groups/:groupId/members"
+          element={
+            <RequireAuth>
+              <GroupMembersPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/groups/:groupId/cycles"
+          element={
+            <RequireAuth>
+              <GroupCyclesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/groups/:groupId/cycles/:cycleNumber"
+          element={
+            <RequireAuth>
+              <GroupCycleDetailPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/groups/:groupId/reports"
+          element={
+            <RequireAuth>
+              <GroupReportsPage />
             </RequireAuth>
           }
         />
@@ -64,7 +99,7 @@ export default function App() {
           path="/groups/:groupId/payments"
           element={
             <RequireAuth>
-              <GroupPaymentsPage />
+              <GroupPaymentsRedirect />
             </RequireAuth>
           }
         />

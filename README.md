@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./app/public/brand/chitpay-app-icon.png" alt="ChitPay app icon" width="128" />
+  <img src="./app/public/chitpay-pwa-192.png" alt="ChitPay app icon" width="128" />
 </p>
 
 <h1 align="center">ChitPay</h1>

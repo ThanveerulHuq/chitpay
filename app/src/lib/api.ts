@@ -8,6 +8,7 @@ import type {
   GroupMemberDoc,
   MembershipMirrorDoc,
   PaymentDoc,
+  PaymentEventDoc,
   PaymentMethod,
 } from '@shared'
 import { functions, db } from './firebase'
@@ -49,14 +50,8 @@ export async function callAddMember(input: {
 export async function fetchMyGroups(): Promise<{ id: string; data: GroupDoc }[]> {
   const user = auth.currentUser
   if (!user) return []
-  const token = await user.getIdTokenResult()
-  const roles = token.claims.roles as string[] | undefined
-  const isAdmin = roles?.includes('admin')
-  
-  const q = isAdmin 
-    ? query(collection(db, 'groups')) 
-    : query(collection(db, 'groups'), where('adminUid', '==', user.uid))
-    
+  const q = query(collection(db, 'groups'), where('adminUid', '==', user.uid))
+
   const snap = await getDocs(q)
   return snap.docs.map((d) => ({ id: d.id, data: d.data() as GroupDoc }))
 }
@@ -103,6 +98,7 @@ export async function callMarkPaid(input: {
 
 export async function callSendReminder(input: {
   groupId: string
+  cycleNumber?: number
   membershipId?: string
 }): Promise<{ sent: number; total: number; overdue: boolean }> {
   const call = httpsCallable<typeof input, { sent: number; total: number; overdue: boolean }>(
@@ -111,6 +107,29 @@ export async function callSendReminder(input: {
   )
   const res = await call(input)
   return res.data
+}
+
+export async function callEditPayment(input: {
+  groupId: string
+  cycleNumber: number
+  membershipId: string
+  method: PaymentMethod
+  referenceNo?: string
+  note?: string
+  reason: string
+}): Promise<void> {
+  const call = httpsCallable<typeof input, { ok: boolean }>(functions, 'editPayment')
+  await call(input)
+}
+
+export async function callReversePayment(input: {
+  groupId: string
+  cycleNumber: number
+  membershipId: string
+  reason: string
+}): Promise<void> {
+  const call = httpsCallable<typeof input, { ok: boolean }>(functions, 'reversePayment')
+  await call(input)
 }
 
 export async function callConfirmSelection(input: {
@@ -176,6 +195,12 @@ export interface PaymentRecord {
   paidAtMs: number | null
 }
 
+export interface PaymentLedgerRecord extends PaymentRecord {
+  status: 'paid' | 'reversed'
+  eventId?: string
+  reason?: string | null
+}
+
 async function fetchCyclePayments(
   groupId: string,
   cycleNumber: number,
@@ -207,6 +232,58 @@ export async function fetchGroupPaymentRecords(
           note: p.note,
           paidAtMs: toMillis(p.paidAt),
         }))
+    }),
+  )
+  return perCycle.flat().sort((a, b) => (b.paidAtMs ?? 0) - (a.paidAtMs ?? 0))
+}
+
+export async function fetchGroupPaymentLedger(
+  groupId: string,
+  membershipIds?: string[],
+): Promise<PaymentLedgerRecord[]> {
+  const wanted = membershipIds ? new Set(membershipIds) : null
+  const cycles = await fetchCycles(groupId)
+  const perCycle = await Promise.all(
+    cycles.map(async ({ id }) => {
+      const cycleNumber = Number(id)
+      const cycleRef = doc(db, 'groups', groupId, 'cycles', id)
+      const [paymentsSnap, eventsSnap] = await Promise.all([
+        getDocs(collection(cycleRef, 'payments')),
+        getDocs(collection(cycleRef, 'paymentEvents')),
+      ])
+      const records: PaymentLedgerRecord[] = []
+      for (const paymentDoc of paymentsSnap.docs) {
+        const payment = paymentDoc.data() as PaymentDoc
+        if (payment.status !== 'paid' || (wanted && !wanted.has(paymentDoc.id))) continue
+        records.push({
+          cycleNumber,
+          membershipId: paymentDoc.id,
+          amountMinor: payment.amountMinor,
+          method: payment.method,
+          referenceNo: payment.referenceNo,
+          note: payment.note,
+          paidAtMs: toMillis(payment.paidAt),
+          status: 'paid',
+        })
+      }
+      for (const eventDoc of eventsSnap.docs) {
+        const event = eventDoc.data() as PaymentEventDoc
+        if (event.type !== 'reversed' || (wanted && !wanted.has(event.membershipId))) continue
+        const before = event.before
+        records.push({
+          cycleNumber,
+          membershipId: event.membershipId,
+          amountMinor: before?.amountMinor ?? 0,
+          method: before?.method ?? null,
+          referenceNo: before?.referenceNo ?? null,
+          note: before?.note ?? null,
+          paidAtMs: toMillis(before?.paidAt),
+          status: 'reversed',
+          eventId: eventDoc.id,
+          reason: event.reason,
+        })
+      }
+      return records
     }),
   )
   return perCycle.flat().sort((a, b) => (b.paidAtMs ?? 0) - (a.paidAtMs ?? 0))

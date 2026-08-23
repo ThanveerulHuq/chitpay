@@ -13,6 +13,8 @@ import type {
   GroupMemberDoc,
   MessageLogDoc,
   PaymentDoc,
+  PaymentEventDoc,
+  PaymentEventSnapshot,
   PaymentMethod,
   UserDoc,
 } from '@chitapp/shared'
@@ -22,6 +24,17 @@ import { messaging } from './messaging.js'
 
 
 const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'upi', 'bank_transfer', 'other']
+
+function paymentSnapshot(payment: PaymentDoc): PaymentEventSnapshot {
+  return {
+    status: payment.status,
+    amountMinor: payment.amountMinor,
+    method: payment.method,
+    referenceNo: payment.referenceNo,
+    note: payment.note,
+    paidAt: payment.paidAt,
+  }
+}
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0')
@@ -100,6 +113,8 @@ export const startNextCycle = onCall({ region: 'asia-south1', invoker: 'public' 
         status: 'payment_open',
         recipientMembershipId: null,
         payout: { amountMinor: 0, status: 'pending', paidAt: null, recordedBy: null },
+        paidCount: 0,
+        collectedAmountMinor: 0,
         createdAt: FieldValue.serverTimestamp() as unknown as number,
       }
       tx.set(cycleRef, cycle)
@@ -114,6 +129,7 @@ export const startNextCycle = onCall({ region: 'asia-south1', invoker: 'public' 
           note: null,
           paidAt: null,
           recordedBy: null,
+          updatedAt: null,
         } satisfies PaymentDoc)
         return {
           membershipId: m.id,
@@ -213,7 +229,7 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
       const board = boardSnap.data() as BoardDoc | undefined
 
       const now = FieldValue.serverTimestamp() as unknown as number
-      tx.set(paymentRef, {
+      const nextPayment: PaymentDoc = {
         amountMinor: group.monthlyAmountMinor,
         status: 'paid',
         method,
@@ -221,7 +237,9 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
         note: input.note?.trim() || null,
         paidAt: now,
         recordedBy: uid,
-      } satisfies PaymentDoc)
+        updatedAt: now,
+      }
+      tx.set(paymentRef, nextPayment)
 
       if (board) {
         const entries = board.entries.map((e) =>
@@ -231,6 +249,27 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
         )
         tx.set(boardRef, { entries })
       }
+
+      tx.update(memberRef, {
+        totalContributedMinor: FieldValue.increment(group.monthlyAmountMinor),
+        paidCycleCount: FieldValue.increment(1),
+      })
+      tx.update(cycleRef, {
+        paidCount: FieldValue.increment(1),
+        collectedAmountMinor: FieldValue.increment(group.monthlyAmountMinor),
+      })
+      const event: PaymentEventDoc = {
+        groupId: input.groupId,
+        cycleNumber: n,
+        membershipId: input.membershipId,
+        type: 'recorded',
+        before: payment ? paymentSnapshot(payment) : null,
+        after: paymentSnapshot(nextPayment),
+        reason: null,
+        performedBy: uid,
+        createdAt: now,
+      }
+      tx.set(cycleRef.collection('paymentEvents').doc(), event)
 
       // Only increment current cycle counts on group doc if paying for the current cycle
       if (n === group.currentCycleNumber) {
@@ -255,6 +294,7 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
 
 interface SendReminderInput {
   groupId: string
+  cycleNumber?: number
   membershipId?: string // omit to remind all unpaid members
 }
 
@@ -262,7 +302,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
   try {
     const uid = req.auth?.uid
     if (!uid) throw new AppError('unauthenticated')
-    const { groupId, membershipId } = req.data as SendReminderInput
+    const { groupId, cycleNumber, membershipId } = req.data as SendReminderInput
 
     const groupRef = db.doc(`groups/${groupId}`)
     const groupSnap = await groupRef.get()
@@ -270,7 +310,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
     if (!groupSnap.exists || !group) throw new AppError('not_found')
     assertAdminAccess(req.auth, group)
 
-    const n = group.currentCycleNumber
+    const n = cycleNumber ?? group.currentCycleNumber
     if (!n || n < 1) {
       throw new AppError('invalid_transition', 'No month is open yet.')
     }
@@ -279,8 +319,8 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
     const cycleSnap = await cycleRef.get()
     const cycle = cycleSnap.data() as CycleDoc | undefined
     if (!cycleSnap.exists || !cycle) throw new AppError('not_found')
-    if (cycle.status !== 'payment_open') {
-      throw new AppError('invalid_transition', 'Reminders can only be sent for an open month.')
+    if (cycle.status === 'upcoming') {
+      throw new AppError('invalid_transition', 'Reminders cannot be sent before the month starts.')
     }
 
     const boardSnap = await cycleRef.collection('board').doc('board').get()
@@ -323,6 +363,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
 
       const log: MessageLogDoc = {
         groupId,
+        cycleNumber: n,
         template,
         toPhone: user.phone,
         membershipId: entry.membershipId,
@@ -339,5 +380,182 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
     return { sent, total: targets.length, overdue }
   } catch (err) {
     throw toHttpsError(err, { fn: 'sendReminder', uid: req.auth?.uid, data: req.data })
+  }
+})
+
+interface EditPaymentInput {
+  groupId: string
+  cycleNumber: number
+  membershipId: string
+  method: PaymentMethod
+  referenceNo?: string
+  note?: string
+  reason: string
+}
+
+export const editPayment = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const uid = req.auth?.uid
+    if (!uid) throw new AppError('unauthenticated')
+    const input = req.data as EditPaymentInput
+    if (!PAYMENT_METHODS.includes(input.method) || !input.reason?.trim()) {
+      throw new AppError('invalid_argument', 'A payment method and correction reason are required.')
+    }
+
+    await db.runTransaction(async (tx) => {
+      const groupRef = db.doc(`groups/${input.groupId}`)
+      const groupSnap = await tx.get(groupRef)
+      const group = groupSnap.data() as GroupDoc | undefined
+      if (!groupSnap.exists || !group) throw new AppError('not_found')
+      assertAdminAccess(req.auth, group)
+
+      const cycleRef = groupRef.collection('cycles').doc(String(input.cycleNumber))
+      const paymentRef = cycleRef.collection('payments').doc(input.membershipId)
+      const paymentSnap = await tx.get(paymentRef)
+      const payment = paymentSnap.data() as PaymentDoc | undefined
+      if (!paymentSnap.exists || !payment || payment.status !== 'paid') {
+        throw new AppError('invalid_transition', 'Only recorded payments can be edited.')
+      }
+
+      const now = FieldValue.serverTimestamp() as unknown as number
+      const nextPayment: PaymentDoc = {
+        ...payment,
+        method: input.method,
+        referenceNo: input.referenceNo?.trim() || null,
+        note: input.note?.trim() || null,
+        updatedAt: now,
+      }
+      tx.set(paymentRef, nextPayment)
+
+      const boardRef = cycleRef.collection('board').doc('board')
+      const boardSnap = await tx.get(boardRef)
+      const board = boardSnap.data() as BoardDoc | undefined
+      if (board) {
+        tx.set(boardRef, {
+          entries: board.entries.map((entry) =>
+            entry.membershipId === input.membershipId
+              ? { ...entry, method: input.method }
+              : entry,
+          ),
+        })
+      }
+
+      const event: PaymentEventDoc = {
+        groupId: input.groupId,
+        cycleNumber: input.cycleNumber,
+        membershipId: input.membershipId,
+        type: 'edited',
+        before: paymentSnapshot(payment),
+        after: paymentSnapshot(nextPayment),
+        reason: input.reason.trim(),
+        performedBy: uid,
+        createdAt: now,
+      }
+      tx.set(cycleRef.collection('paymentEvents').doc(), event)
+    })
+    return { ok: true }
+  } catch (err) {
+    throw toHttpsError(err, { fn: 'editPayment', uid: req.auth?.uid, data: req.data })
+  }
+})
+
+interface ReversePaymentInput {
+  groupId: string
+  cycleNumber: number
+  membershipId: string
+  reason: string
+}
+
+export const reversePayment = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const uid = req.auth?.uid
+    if (!uid) throw new AppError('unauthenticated')
+    const input = req.data as ReversePaymentInput
+    if (!input.reason?.trim()) throw new AppError('invalid_argument', 'A reversal reason is required.')
+
+    await db.runTransaction(async (tx) => {
+      const groupRef = db.doc(`groups/${input.groupId}`)
+      const groupSnap = await tx.get(groupRef)
+      const group = groupSnap.data() as GroupDoc | undefined
+      if (!groupSnap.exists || !group) throw new AppError('not_found')
+      assertAdminAccess(req.auth, group)
+
+      const cycleRef = groupRef.collection('cycles').doc(String(input.cycleNumber))
+      const cycleSnap = await tx.get(cycleRef)
+      if (!cycleSnap.exists) throw new AppError('not_found')
+      const memberRef = groupRef.collection('members').doc(input.membershipId)
+      const memberSnap = await tx.get(memberRef)
+      const member = memberSnap.data() as GroupMemberDoc | undefined
+      if (!memberSnap.exists || !member) throw new AppError('not_found')
+
+      const paymentRef = cycleRef.collection('payments').doc(input.membershipId)
+      const paymentSnap = await tx.get(paymentRef)
+      const payment = paymentSnap.data() as PaymentDoc | undefined
+      if (!paymentSnap.exists || !payment || payment.status !== 'paid') {
+        throw new AppError('invalid_transition', 'This payment is not currently recorded.')
+      }
+
+      const now = FieldValue.serverTimestamp() as unknown as number
+      const nextPayment: PaymentDoc = {
+        amountMinor: payment.amountMinor,
+        status: 'pending',
+        method: null,
+        referenceNo: null,
+        note: null,
+        paidAt: null,
+        recordedBy: null,
+        updatedAt: now,
+      }
+      tx.set(paymentRef, nextPayment)
+
+      const boardRef = cycleRef.collection('board').doc('board')
+      const boardSnap = await tx.get(boardRef)
+      const board = boardSnap.data() as BoardDoc | undefined
+      if (board) {
+        tx.set(boardRef, {
+          entries: board.entries.map((entry) =>
+            entry.membershipId === input.membershipId
+              ? { ...entry, status: 'pending' as const, method: null }
+              : entry,
+          ),
+        })
+      }
+
+      tx.update(memberRef, {
+        totalContributedMinor: FieldValue.increment(-payment.amountMinor),
+        paidCycleCount: FieldValue.increment(-1),
+      })
+      tx.update(cycleRef, {
+        paidCount: FieldValue.increment(-1),
+        collectedAmountMinor: FieldValue.increment(-payment.amountMinor),
+      })
+      if (input.cycleNumber === group.currentCycleNumber) {
+        tx.update(groupRef, {
+          paidCount: FieldValue.increment(-1),
+          collectedAmountMinor: FieldValue.increment(-payment.amountMinor),
+        })
+        tx.set(
+          db.doc(`users/${member.uid}/memberships/${input.membershipId}`),
+          { myPaymentStatus: 'pending' },
+          { merge: true },
+        )
+      }
+
+      const event: PaymentEventDoc = {
+        groupId: input.groupId,
+        cycleNumber: input.cycleNumber,
+        membershipId: input.membershipId,
+        type: 'reversed',
+        before: paymentSnapshot(payment),
+        after: paymentSnapshot(nextPayment),
+        reason: input.reason.trim(),
+        performedBy: uid,
+        createdAt: now,
+      }
+      tx.set(cycleRef.collection('paymentEvents').doc(), event)
+    })
+    return { ok: true }
+  } catch (err) {
+    throw toHttpsError(err, { fn: 'reversePayment', uid: req.auth?.uid, data: req.data })
   }
 })
