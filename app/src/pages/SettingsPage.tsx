@@ -1,12 +1,39 @@
-import { CheckCircle, Globe, ShieldStar, SignOut, User } from '@phosphor-icons/react'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Archive, CalendarBlank, CheckCircle, Globe, ShieldStar, SignOut, User, Users } from '@phosphor-icons/react'
 import { Page, PageHeader, Button } from '@/components/ui'
 import { useAuth } from '@/lib/useAuth'
 import { useI18n } from '@/i18n'
 import type { Lang } from '@/i18n/types'
+import { fetchMyGroups } from '@/lib/api'
+import type { GroupDoc } from '@shared'
+import { useViewMode } from '@/lib/useViewMode'
 
 export default function SettingsPage() {
   const { lang, setLang, t } = useI18n()
   const { user, profile, logout, isAdmin } = useAuth()
+  const { setViewMode } = useViewMode()
+  const [archivedGroups, setArchivedGroups] = useState<{ id: string; data: GroupDoc }[]>([])
+  const [archivesLoading, setArchivesLoading] = useState(isAdmin)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!isAdmin) {
+      return
+    }
+    void fetchMyGroups()
+      .then((groups) => {
+        if (cancelled) return
+        setArchivedGroups(groups.filter(({ data }) => data.status === 'archived'))
+      })
+      .catch(() => {
+        if (!cancelled) setArchivedGroups([])
+      })
+      .finally(() => {
+        if (!cancelled) setArchivesLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [isAdmin])
 
   const languages: Array<{ code: Lang; label: string; subLabel: string }> = [
     { code: 'en', label: 'English', subLabel: 'English' },
@@ -104,6 +131,48 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {isAdmin && (
+          <section>
+            <div className="mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-faint">
+                {t('settings.archivedGroups')}
+              </h2>
+              <p className="mt-1 text-sm text-muted">{t('settings.archivedGroupsDesc')}</p>
+            </div>
+            {archivesLoading ? (
+              <div className="rounded-2xl border border-line bg-surface p-4 text-sm text-muted">
+                {t('common.loading')}
+              </div>
+            ) : archivedGroups.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-line p-6 text-center">
+                <Archive size={26} className="mx-auto text-faint" />
+                <p className="mt-2 text-sm text-muted">{t('settings.noArchivedGroups')}</p>
+              </div>
+            ) : (
+              <ul className="space-y-2.5">
+                {archivedGroups.map(({ id, data }) => (
+                  <li key={id}>
+                    <Link to={`/groups/${id}`} onClick={() => setViewMode('admin')} className="block rounded-2xl border border-line bg-surface p-4 transition-colors hover:bg-sunken">
+                      <div className="flex items-center gap-3">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sunken text-muted">
+                          <Archive size={20} weight="bold" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold text-ink">{data.name}</p>
+                          <p className="mt-1 flex items-center gap-3 text-xs text-muted">
+                            <span className="inline-flex items-center gap-1"><Users size={13} />{data.memberCount}</span>
+                            <span className="inline-flex items-center gap-1"><CalendarBlank size={13} />{Math.max(data.currentCycleNumber, 0)}/{data.durationMonths}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {/* Logout Action */}
         <section className="pt-2">

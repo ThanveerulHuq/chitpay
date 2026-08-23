@@ -3,6 +3,7 @@ import { onCall } from 'firebase-functions/v2/https'
 import { FieldValue } from 'firebase-admin/firestore'
 import {
   AppError,
+  assertGroupWritable,
   formatMinor,
 } from '@chitapp/shared'
 import type {
@@ -67,6 +68,7 @@ export const startNextCycle = onCall({ region: 'asia-south1', invoker: 'public' 
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
       assertAdminAccess(req.auth, group)
+      assertGroupWritable(group)
       if (group.status !== 'active') {
         throw new AppError('invalid_transition', 'This group is not active.')
       }
@@ -193,6 +195,7 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
       assertAdminAccess(req.auth, group)
+      assertGroupWritable(group)
 
       const n = input.cycleNumber ?? group.currentCycleNumber
       if (!n || n < 1) {
@@ -309,6 +312,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
     const group = groupSnap.data() as GroupDoc | undefined
     if (!groupSnap.exists || !group) throw new AppError('not_found')
     assertAdminAccess(req.auth, group)
+    assertGroupWritable(group)
 
     const n = cycleNumber ?? group.currentCycleNumber
     if (!n || n < 1) {
@@ -408,6 +412,7 @@ export const editPayment = onCall({ region: 'asia-south1', invoker: 'public' }, 
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
       assertAdminAccess(req.auth, group)
+      assertGroupWritable(group)
 
       const cycleRef = groupRef.collection('cycles').doc(String(input.cycleNumber))
       const paymentRef = cycleRef.collection('payments').doc(input.membershipId)
@@ -480,6 +485,7 @@ export const reversePayment = onCall({ region: 'asia-south1', invoker: 'public' 
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
       assertAdminAccess(req.auth, group)
+      assertGroupWritable(group)
 
       const cycleRef = groupRef.collection('cycles').doc(String(input.cycleNumber))
       const cycleSnap = await tx.get(cycleRef)

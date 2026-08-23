@@ -29,6 +29,16 @@ export async function callCreateGroup(input: {
   return res.data.groupId
 }
 
+export async function callArchiveGroup(groupId: string): Promise<void> {
+  const call = httpsCallable<{ groupId: string }, { ok: boolean }>(functions, 'archiveGroup')
+  await call({ groupId })
+}
+
+export async function callUnarchiveGroup(groupId: string): Promise<void> {
+  const call = httpsCallable<{ groupId: string }, { ok: boolean }>(functions, 'unarchiveGroup')
+  await call({ groupId })
+}
+
 export interface AddMemberResult {
   membershipId: string
   slotNo: number

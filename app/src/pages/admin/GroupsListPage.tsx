@@ -33,7 +33,7 @@ export default function GroupsListPage() {
       ])
       if (cancelled) return
 
-      const adminEntries: ListEntry[] = adminGroups.map(({ id, data: g }) => ({
+      const adminEntries: ListEntry[] = adminGroups.filter(({ data: g }) => g.status !== 'archived').map(({ id, data: g }) => ({
         kind: 'admin',
         id,
         name: g.name,

@@ -215,6 +215,15 @@ export const en = {
   'workspace.statusRecipientSelected': 'Winner selected',
   'workspace.statusPayoutRecorded': 'Payout recorded',
   'workspace.statusComplete': 'Complete',
+  'workspace.archiveTitle': 'Archive this group',
+  'workspace.archiveDesc': 'Move it out of your active groups while keeping its history.',
+  'workspace.archiveAction': 'Archive',
+  'workspace.archiveConfirm': 'Archive this group? It will become read-only until you unarchive it.',
+  'workspace.archiveError': 'Could not archive this group.',
+  'workspace.archivedTitle': 'Archived group',
+  'workspace.archivedDesc': 'You can review everything, but changes are disabled.',
+  'workspace.unarchiveAction': 'Unarchive',
+  'workspace.unarchiveError': 'Could not unarchive this group.',
 
   // Member Group View
   'memberView.yourContribution': 'Your contribution',
@@ -243,6 +252,9 @@ export const en = {
   'settings.role': 'Role',
   'settings.appInfo': 'About ChitPay',
   'settings.appDescription': 'Simple & trustworthy chit fund management',
+  'settings.archivedGroups': 'Archived groups',
+  'settings.archivedGroupsDesc': 'Review groups removed from your active list',
+  'settings.noArchivedGroups': 'No archived groups',
 
   // App installation
   'install.title': 'Install ChitPay',

@@ -3,8 +3,10 @@ import { onCall } from 'firebase-functions/v2/https'
 import { FieldValue } from 'firebase-admin/firestore'
 import {
   AppError,
+  assertGroupWritable,
   generateMemberPassword,
   normalizePhone,
+  resolveUnarchiveStatus,
 } from '@chitapp/shared'
 import type { BoardDoc, BoardEntry, GroupDoc, PaymentDoc } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
@@ -86,6 +88,64 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
   }
 })
 
+interface GroupArchiveInput {
+  groupId: string
+}
+
+export const archiveGroup = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const groupId = String((req.data as GroupArchiveInput)?.groupId ?? '')
+    if (!groupId) throw new AppError('invalid_argument', 'Group is required.')
+
+    await db.runTransaction(async (tx) => {
+      const groupRef = db.doc(`groups/${groupId}`)
+      const groupSnap = await tx.get(groupRef)
+      const group = groupSnap.data() as GroupDoc | undefined
+      if (!groupSnap.exists || !group) throw new AppError('not_found')
+      assertAdminAccess(req.auth, group)
+      if (group.status === 'archived') {
+        throw new AppError('invalid_transition', 'This group is already archived.')
+      }
+      tx.update(groupRef, {
+        status: 'archived',
+        statusBeforeArchive: group.status,
+        archivedAt: FieldValue.serverTimestamp(),
+        archivedBy: req.auth!.uid,
+      })
+    })
+
+    return { ok: true }
+  } catch (err) {
+    throw toHttpsError(err, { fn: 'archiveGroup', uid: req.auth?.uid, data: req.data })
+  }
+})
+
+export const unarchiveGroup = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const groupId = String((req.data as GroupArchiveInput)?.groupId ?? '')
+    if (!groupId) throw new AppError('invalid_argument', 'Group is required.')
+
+    await db.runTransaction(async (tx) => {
+      const groupRef = db.doc(`groups/${groupId}`)
+      const groupSnap = await tx.get(groupRef)
+      const group = groupSnap.data() as GroupDoc | undefined
+      if (!groupSnap.exists || !group) throw new AppError('not_found')
+      assertAdminAccess(req.auth, group)
+      const restoredStatus = resolveUnarchiveStatus(group)
+      tx.update(groupRef, {
+        status: restoredStatus,
+        statusBeforeArchive: FieldValue.delete(),
+        archivedAt: FieldValue.delete(),
+        archivedBy: FieldValue.delete(),
+      })
+    })
+
+    return { ok: true }
+  } catch (err) {
+    throw toHttpsError(err, { fn: 'unarchiveGroup', uid: req.auth?.uid, data: req.data })
+  }
+})
+
 interface AddMemberInput {
   groupId: string
   name: string
@@ -100,6 +160,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
     const input = req.data as AddMemberInput
 
     const group = await assertAdminOf(req.auth, String(input.groupId ?? ''))
+    assertGroupWritable(group)
     const name = String(input.name ?? '').trim()
     const phone = normalizePhone(String(input.phone ?? ''))
     if (!name) throw new AppError('invalid_argument', 'Member name is required.')
@@ -150,7 +211,9 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       const groupRef = db.doc(`groups/${input.groupId}`)
       const snap = await tx.get(groupRef)
       if (!snap.exists) throw new AppError('not_found')
-      const memberCount = (snap.data() as GroupDoc).memberCount ?? 0
+      const currentGroup = snap.data() as GroupDoc
+      assertGroupWritable(currentGroup)
+      const memberCount = currentGroup.memberCount ?? 0
       const slotNo = memberCount + 1
       const memberRef = groupRef.collection('members').doc()
       const membershipId = memberRef.id

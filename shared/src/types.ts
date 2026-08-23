@@ -10,6 +10,7 @@ export interface UserDoc {
 }
 
 export type GroupStatus = 'active' | 'completed' | 'archived'
+export type ArchivableGroupStatus = Exclude<GroupStatus, 'archived'>
 export type PaymentMethod = 'cash' | 'upi' | 'bank_transfer' | 'other'
 
 export interface GroupDoc {
@@ -23,6 +24,9 @@ export interface GroupDoc {
   description?: string
   requirePaidToWin: boolean
   status: GroupStatus
+  statusBeforeArchive?: ArchivableGroupStatus
+  archivedAt?: number
+  archivedBy?: string
   currentCycleNumber: number
   memberCount: number
   paidCount: number

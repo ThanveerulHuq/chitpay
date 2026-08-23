@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, FileText, Receipt } from '@phosphor-icons/react'
-import { fetchCycles, fetchGroup, fetchGroupMembers } from '@/lib/api'
+import { Archive, ArrowCounterClockwise, ArrowLeft, FileText, Receipt } from '@phosphor-icons/react'
+import { callArchiveGroup, callUnarchiveGroup, fetchCycles, fetchGroup, fetchGroupMembers } from '@/lib/api'
 import { formatMinor } from '@shared'
 import type { CycleDoc, GroupDoc, GroupMemberDoc } from '@shared'
 import { Page, Skeleton } from '@/components/ui'
@@ -17,6 +17,7 @@ export interface WorkspaceValue {
   cycles: { id: string; data: CycleDoc }[]
   reload: () => Promise<void>
   isReadOnly: boolean
+  isMemberView: boolean
   isAdmin: boolean
 }
 
@@ -40,6 +41,8 @@ export default function GroupShell({ children }: { children: ReactNode }) {
   const [cycles, setCycles] = useState<{ id: string; data: CycleDoc }[]>([])
   const [loading, setLoading] = useState(true)
   const [paymentOpen, setPaymentOpen] = useState(false)
+  const [archiveBusy, setArchiveBusy] = useState(false)
+  const [archiveError, setArchiveError] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     const [nextGroup, nextMembers, nextCycles] = await Promise.all([
@@ -69,14 +72,43 @@ export default function GroupShell({ children }: { children: ReactNode }) {
     }
   }, [groupId])
 
-  const isReadOnly = !isAdmin || searchParams.get('view') === 'member' || viewMode === 'member'
-  const query = isReadOnly ? '?view=member' : ''
+  const isMemberView = !isAdmin || searchParams.get('view') === 'member' || viewMode === 'member'
+  const isArchived = group?.data.status === 'archived'
+  const isReadOnly = isMemberView || isArchived
+  const query = isMemberView ? '?view=member' : ''
   const isCycleDetail = /^\/groups\/[^/]+\/cycles\/[^/]+$/.test(location.pathname)
-  const backTo = isCycleDetail ? `/groups/${groupId}/cycles${query}` : `/groups${query}`
+  const backTo = isCycleDetail ? `/groups/${groupId}/cycles${query}` : isArchived && !isMemberView ? '/settings' : `/groups${query}`
   const value = useMemo<WorkspaceValue | null>(
-    () => group ? ({ groupId, group: group.data, members, cycles, reload, isReadOnly, isAdmin }) : null,
-    [groupId, group, members, cycles, reload, isReadOnly, isAdmin],
+    () => group ? ({ groupId, group: group.data, members, cycles, reload, isReadOnly, isMemberView, isAdmin }) : null,
+    [groupId, group, members, cycles, reload, isReadOnly, isMemberView, isAdmin],
   )
+
+  async function archive() {
+    if (!window.confirm(t('workspace.archiveConfirm'))) return
+    setArchiveBusy(true)
+    setArchiveError(null)
+    try {
+      await callArchiveGroup(groupId)
+      await reload()
+    } catch {
+      setArchiveError(t('workspace.archiveError'))
+    } finally {
+      setArchiveBusy(false)
+    }
+  }
+
+  async function unarchive() {
+    setArchiveBusy(true)
+    setArchiveError(null)
+    try {
+      await callUnarchiveGroup(groupId)
+      await reload()
+    } catch {
+      setArchiveError(t('workspace.unarchiveError'))
+    } finally {
+      setArchiveBusy(false)
+    }
+  }
 
   if (loading || !group || !value) {
     return (
@@ -104,7 +136,7 @@ export default function GroupShell({ children }: { children: ReactNode }) {
               <h1 className="truncate text-xl font-bold tracking-tight">{group.data.name}</h1>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              {isAdmin && group.data.currentCycleNumber > 0 && (
+              {!isReadOnly && group.data.currentCycleNumber > 0 && (
                 <button
                   type="button"
                   onClick={() => setPaymentOpen(true)}
@@ -142,8 +174,22 @@ export default function GroupShell({ children }: { children: ReactNode }) {
             </WorkspaceTab>
           </nav>
         </header>
+        {isAdmin && !isMemberView && (
+          <div className={`mt-4 flex items-center gap-3 rounded-2xl border p-3.5 ${isArchived ? 'border-line bg-sunken' : 'border-line/70 bg-surface'}`}>
+            <Archive size={20} weight="bold" className={isArchived ? 'shrink-0 text-muted' : 'shrink-0 text-faint'} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">{isArchived ? t('workspace.archivedTitle') : t('workspace.archiveTitle')}</p>
+              <p className="text-xs text-muted">{isArchived ? t('workspace.archivedDesc') : t('workspace.archiveDesc')}</p>
+              {archiveError && <p role="alert" className="mt-1 text-xs text-danger">{archiveError}</p>}
+            </div>
+            <button type="button" disabled={archiveBusy} onClick={() => void (isArchived ? unarchive() : archive())} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-accent-strong hover:bg-accent-soft disabled:opacity-40 dark:text-accent">
+              {isArchived ? <ArrowCounterClockwise size={16} weight="bold" /> : <Archive size={16} weight="bold" />}
+              {isArchived ? t('workspace.unarchiveAction') : t('workspace.archiveAction')}
+            </button>
+          </div>
+        )}
         <div className="pt-4">{children}</div>
-        {paymentOpen && group.data.currentCycleNumber > 0 && (
+        {!isReadOnly && paymentOpen && group.data.currentCycleNumber > 0 && (
           <PaymentSheet
             groupId={groupId}
             group={group.data}

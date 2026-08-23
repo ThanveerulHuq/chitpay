@@ -18,7 +18,7 @@ export default function GroupReportsPage() {
 function ReportsContent() {
   const { t } = useI18n()
   const locale = useLocale()
-  const { groupId, group, members, isReadOnly } = useGroupWorkspace()
+  const { groupId, group, members, isReadOnly, isMemberView } = useGroupWorkspace()
   const [rows, setRows] = useState<PaymentLedgerRecord[]>([])
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -30,11 +30,11 @@ function ReportsContent() {
 
   const reload = useCallback(async () => {
     setLoading(true)
-    const ids = isReadOnly ? (await fetchMyMemberships()).filter((entry) => entry.data.groupId === groupId).map((entry) => entry.data.membershipId) : undefined
+    const ids = isMemberView ? (await fetchMyMemberships()).filter((entry) => entry.data.groupId === groupId).map((entry) => entry.data.membershipId) : undefined
     const records = await fetchGroupPaymentLedger(groupId, ids)
     setRows(records)
     setLoading(false)
-  }, [groupId, isReadOnly])
+  }, [groupId, isMemberView])
 
   useEffect(() => { void reload() }, [reload])
 

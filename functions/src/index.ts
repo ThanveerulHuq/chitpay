@@ -5,7 +5,7 @@ export {
   verifyOtp,
   syncClaims,
 } from './auth.js'
-export { createGroup, addMember } from './groups.js'
+export { createGroup, addMember, archiveGroup, unarchiveGroup } from './groups.js'
 export { startNextCycle, markPaid, editPayment, reversePayment, sendReminder } from './cycles.js'
 export { backfillFinancialSummaries } from './backfill.js'
 export { confirmSelection } from './selection.js'

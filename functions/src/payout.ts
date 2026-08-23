@@ -1,7 +1,7 @@
 import { db, auth } from './firebaseAdmin.js'
 import { onCall } from 'firebase-functions/v2/https'
 import { FieldValue } from 'firebase-admin/firestore'
-import { AppError, assertTransition } from '@chitapp/shared'
+import { AppError, assertGroupWritable, assertTransition } from '@chitapp/shared'
 import type { CycleDoc, GroupDoc } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
 import { assertAdminAccess } from './auth.js'
@@ -26,6 +26,7 @@ export const recordPayout = onCall({ region: 'asia-south1', invoker: 'public' },
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
       assertAdminAccess(req.auth, group)
+      assertGroupWritable(group)
 
       const n = group.currentCycleNumber
       if (!n || n < 1) throw new AppError('invalid_transition')

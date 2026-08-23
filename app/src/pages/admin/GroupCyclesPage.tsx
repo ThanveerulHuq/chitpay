@@ -13,7 +13,7 @@ export default function GroupCyclesPage() {
 
 function CyclesContent() {
   const { t } = useI18n()
-  const { groupId, group, members, cycles, reload, isReadOnly } = useGroupWorkspace()
+  const { groupId, group, members, cycles, reload, isReadOnly, isMemberView } = useGroupWorkspace()
   const currentRef = useRef<HTMLLIElement>(null)
   const [fallback, setFallback] = useState<Map<string, { paidCount: number; collected: number }>>(new Map())
   const [busy, setBusy] = useState(false)
@@ -74,7 +74,7 @@ function CyclesContent() {
             const current = Number(id) === group.currentCycleNumber
             return (
               <li key={id} ref={current ? currentRef : undefined}>
-                <Link to={`/groups/${groupId}/cycles/${id}${isReadOnly ? '?view=member' : ''}`} className={`block rounded-2xl border bg-surface p-4 transition-colors hover:bg-sunken ${current ? 'border-accent/60 ring-1 ring-accent/20' : 'border-line'}`}>
+                <Link to={`/groups/${groupId}/cycles/${id}${isMemberView ? '?view=member' : ''}`} className={`block rounded-2xl border bg-surface p-4 transition-colors hover:bg-sunken ${current ? 'border-accent/60 ring-1 ring-accent/20' : 'border-line'}`}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <h2 className="font-bold">{t('workspace.month', { month: data.monthNumber })}</h2>
