@@ -10,11 +10,22 @@ const vars = {
 
 describe('message templates', () => {
   describe('English', () => {
-    it('renders payment reminder with due date', () => {
-      const msg = renderMessage('payment_reminder', { ...vars, dueDate: '21 Aug 2026' })
+    it('renders a cycle payment reminder without a due date', () => {
+      const msg = renderMessage('payment_reminder', vars)
       expect(msg).toContain('Farhan')
       expect(msg).toContain('₹10,000')
-      expect(msg).toContain('21 Aug 2026')
+      expect(msg).toContain('cycle contribution')
+    })
+
+    it('renders one consolidated reminder for all pending cycles', () => {
+      const msg = renderMessage('pending_payments_reminder', {
+        ...vars,
+        amountMinor: 3000000,
+        pendingCycles: [1, 2, 3],
+      })
+      expect(msg).toContain('cycles 1, 2, 3')
+      expect(msg).toContain('₹30,000')
+      expect(msg).toContain('total pending')
     })
 
     it('renders recipient notification with pool amount', () => {
@@ -29,12 +40,12 @@ describe('message templates', () => {
 
     it('renders login link copy', () => {
       const msg = renderMessage('login_link', vars)
-      expect(msg).toContain("Hi Farhan, here's your access link for Chitpay.")
+      expect(msg).toContain("Hi Farhan, here's your access link for ChitPay.")
       expect(msg).toContain('Tap the button below to see your group.')
     })
 
     it('renders member invite', () => {
-      const msg = renderMessage('member_invite', { ...vars, loginCode: '123456', appUrl: 'https://chitapp.app' })
+      const msg = renderMessage('member_invite', { ...vars, loginCode: '123456', appUrl: 'https://chitpay.web.app' })
       expect(msg).toContain('Farhan')
       expect(msg).toContain('Ahmed Friends Group')
       expect(msg).toContain('123456')
@@ -47,7 +58,7 @@ describe('message templates', () => {
     })
 
     it('never leaks other members into messages', () => {
-      const msg = renderMessage('overdue_reminder', { ...vars, dueDate: '21 Aug 2026' })
+      const msg = renderMessage('payment_reminder', vars)
       expect(msg).not.toMatch(/password/i)
     })
   })
@@ -55,7 +66,7 @@ describe('message templates', () => {
   describe('Tamil', () => {
     it('renders login code in Tamil', () => {
       const msg = renderMessage('login_code', { ...vars, loginCode: '123456' }, 'ta')
-      expect(msg).toContain('ChitApp உள்நுழைவு OTP: 123456')
+      expect(msg).toContain('ChitPay உள்நுழைவு OTP: 123456')
       expect(msg).toContain('5 நிமிடங்களில்')
     })
 
@@ -73,17 +84,21 @@ describe('message templates', () => {
     })
 
     it('renders payment reminder in Tamil', () => {
-      const msg = renderMessage('payment_reminder', { ...vars, dueDate: '21 Aug 2026' }, 'ta')
+      const msg = renderMessage('payment_reminder', vars, 'ta')
       expect(msg).toContain('Farhan')
       expect(msg).toContain('₹10,000')
-      expect(msg).toContain('21 Aug 2026 அன்று')
+      expect(msg).toContain('சுற்று சந்தா')
     })
 
-    it('renders overdue reminder in Tamil', () => {
-      const msg = renderMessage('overdue_reminder', { ...vars, dueDate: '21 Aug 2026' }, 'ta')
-      expect(msg).toContain('Farhan')
-      expect(msg).toContain('₹10,000')
-      expect(msg).toContain('கடைசி தேதி: 21 Aug 2026')
+    it('renders a consolidated payment reminder in Tamil', () => {
+      const msg = renderMessage('pending_payments_reminder', {
+        ...vars,
+        amountMinor: 3000000,
+        pendingCycles: [1, 2, 3],
+      }, 'ta')
+      expect(msg).toContain('1, 2, 3')
+      expect(msg).toContain('₹30,000')
+      expect(msg).toContain('மொத்த நிலுவை')
     })
 
     it('renders recipient notification in Tamil', () => {

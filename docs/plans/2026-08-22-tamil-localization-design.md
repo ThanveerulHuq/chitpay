@@ -5,7 +5,7 @@ Status: Approved
 
 ## Goal
 
-Localize the entire ChitApp experience in Tamil alongside English:
+Localize the entire ChitPay experience in Tamil alongside English:
 
 - All app UI (login, groups list, create group, group dashboard, member view, shared UI primitives, offline banner)
 - User-facing error messages

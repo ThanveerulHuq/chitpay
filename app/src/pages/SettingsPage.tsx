@@ -1,9 +1,10 @@
-import { CheckCircle, Globe, ShieldStar, SignOut, User } from '@phosphor-icons/react'
+import { Link } from 'react-router-dom'
+import { Archive, CaretRight, CheckCircle, Globe, ShieldStar, SignOut, User } from '@phosphor-icons/react'
 import { Page, PageHeader, Button } from '@/components/ui'
 import { useAuth } from '@/lib/useAuth'
 import { useI18n } from '@/i18n'
 import type { Lang } from '@/i18n/types'
-import { groupsPath, useExperience } from '@/lib/roleRoutes'
+import { groupsPath, settingsPath, useExperience } from '@/lib/roleRoutes'
 
 export default function SettingsPage() {
   const { lang, setLang, t } = useI18n()
@@ -106,6 +107,18 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {isAdmin && experience === 'admin' && (
+          <section>
+            <Link to={`${settingsPath(experience)}/archived-groups`} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors hover:bg-sunken">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sunken text-muted">
+                <Archive size={20} weight="bold" />
+              </div>
+              <span className="min-w-0 flex-1 font-semibold text-ink">{t('settings.archivedGroups')}</span>
+              <CaretRight size={18} className="shrink-0 text-faint" />
+            </Link>
+          </section>
+        )}
 
         {/* Logout Action */}
         <section className="pt-2">

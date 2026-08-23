@@ -1,5 +1,5 @@
 import { onCall } from 'firebase-functions/v2/https'
-import { AppError, summarizePayments, type GroupDoc, type PaymentDoc } from '@chitapp/shared'
+import { AppError, assertGroupWritable, summarizePayments, type GroupDoc, type PaymentDoc } from '@chitapp/shared'
 import { db } from './firebaseAdmin.js'
 import { assertAdminAccess } from './auth.js'
 import { toHttpsError } from './httpsError.js'
@@ -21,7 +21,8 @@ export const backfillFinancialSummaries = onCall(
       const groupSnap = await groupRef.get()
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group)
+      assertGroupWritable(group)
 
       const [membersSnap, cyclesSnap] = await Promise.all([
         groupRef.collection('members').get(),
@@ -49,10 +50,6 @@ export const backfillFinancialSummaries = onCall(
         cycleTotals.set(cycleDoc.id, total)
       }
 
-      const currentTotals = cycleTotals.get(String(group.currentCycleNumber)) ?? {
-        paidCount: 0,
-        collectedAmountMinor: 0,
-      }
       if (!input.dryRun) {
         let batch = db.batch()
         let writes = 0
@@ -77,12 +74,6 @@ export const backfillFinancialSummaries = onCall(
           writes += 1
           if (writes === 450) await commit()
         }
-        batch.update(groupRef, {
-          paidCount: currentTotals.paidCount,
-          collectedAmountMinor: currentTotals.collectedAmountMinor,
-          financialSummaryVersion: 1,
-        })
-        writes += 1
         await commit()
       }
 
@@ -91,8 +82,6 @@ export const backfillFinancialSummaries = onCall(
         dryRun: Boolean(input.dryRun),
         members: memberTotals.size,
         cycles: cycleTotals.size,
-        currentPaidCount: currentTotals.paidCount,
-        currentCollectedAmountMinor: currentTotals.collectedAmountMinor,
       }
     } catch (err) {
       throw toHttpsError(err, {

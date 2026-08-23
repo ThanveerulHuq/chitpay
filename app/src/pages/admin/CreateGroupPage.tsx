@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { callCreateGroup } from '@/lib/api'
-import { toMinor } from '@shared'
-import { Button, DateInput, ErrorNote, Field, Input, Page, PageHeader, Select, Textarea } from '@/components/ui'
+import { generateCycleSchedule, isValidIsoDate, toMinor, type CycleFrequency } from '@shared'
+import { Button, DateInput, Dropdown, ErrorNote, Field, Input, Page, PageHeader, Textarea } from '@/components/ui'
 import { useT } from '@/i18n'
 import { groupPath, groupsPath, useExperience } from '@/lib/roleRoutes'
 
@@ -12,9 +12,9 @@ export default function CreateGroupPage() {
   const experience = useExperience()
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
-  const [durationMonths, setDurationMonths] = useState('')
+  const [cycleCount, setCycleCount] = useState('')
+  const [frequency, setFrequency] = useState<CycleFrequency>('monthly')
   const [startDate, setStartDate] = useState('')
-  const [dueDay, setDueDay] = useState('21')
   const [description, setDescription] = useState('')
   const [requirePaidToWin, setRequirePaidToWin] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -27,10 +27,10 @@ export default function CreateGroupPage() {
     try {
       const groupId = await callCreateGroup({
         name,
-        monthlyAmountMinor: toMinor(Number(amount)),
+        contributionAmountMinor: toMinor(Number(amount)),
         currency: 'INR',
-        dueDay: Number(dueDay),
-        durationMonths: Number(durationMonths),
+        frequency,
+        cycleCount: Number(cycleCount),
         startDate,
         description: description || undefined,
         requirePaidToWin,
@@ -41,6 +41,11 @@ export default function CreateGroupPage() {
       setBusy(false)
     }
   }
+
+  const parsedCycleCount = Number(cycleCount)
+  const schedule = isValidIsoDate(startDate) && Number.isInteger(parsedCycleCount) && parsedCycleCount > 0 && parsedCycleCount <= 100
+    ? generateCycleSchedule(startDate, frequency, parsedCycleCount)
+    : []
 
   return (
     <Page>
@@ -83,15 +88,16 @@ export default function CreateGroupPage() {
                 placeholder={t('createGroup.contributionPlaceholder')}
               />
             </Field>
-            <Field label={t('createGroup.duration')}>
+            <Field label={t('createGroup.cycleCount')}>
               <Input
                 required
                 type="number"
                 min={1}
                 inputMode="numeric"
-                value={durationMonths}
-                onChange={(e) => setDurationMonths(e.target.value)}
-                placeholder={t('createGroup.durationPlaceholder')}
+                max={100}
+                value={cycleCount}
+                onChange={(e) => setCycleCount(e.target.value)}
+                placeholder={t('createGroup.cycleCountPlaceholder')}
               />
             </Field>
           </div>
@@ -102,6 +108,17 @@ export default function CreateGroupPage() {
 
         <section className="space-y-5 border-t border-line pt-6">
           <div className="grid grid-cols-2 gap-4">
+            <Field label={t('createGroup.frequency')}>
+              <Dropdown
+                value={frequency}
+                onChange={setFrequency}
+                options={[
+                  { value: 'weekly', label: t('createGroup.frequencyWeekly') },
+                  { value: 'biweekly', label: t('createGroup.frequencyBiweekly') },
+                  { value: 'monthly', label: t('createGroup.frequencyMonthly') },
+                ] satisfies { value: CycleFrequency; label: string }[]}
+              />
+            </Field>
             <Field label={t('createGroup.startDate')}>
               <DateInput
                 required
@@ -109,16 +126,20 @@ export default function CreateGroupPage() {
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </Field>
-            <Field label={t('createGroup.dueDay')}>
-              <Select value={dueDay} onChange={(e) => setDueDay(e.target.value)}>
-                {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </Select>
-            </Field>
           </div>
+          {schedule.length > 0 && (
+            <div className="rounded-2xl border border-line bg-sunken p-4">
+              <h2 className="text-sm font-semibold">{t('createGroup.schedulePreview')}</h2>
+              <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+                {schedule.map((date, index) => (
+                  <li key={date} className="flex items-center justify-between rounded-xl bg-surface px-3 py-2 text-sm">
+                    <span>{t('workspace.cycleNumber', { cycle: index + 1 })}</span>
+                    <span className="font-medium tabular-nums text-muted">{date}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
           <label className="flex items-start gap-3 text-sm">
             <input
               type="checkbox"

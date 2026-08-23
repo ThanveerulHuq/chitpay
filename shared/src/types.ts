@@ -10,24 +10,27 @@ export interface UserDoc {
 }
 
 export type GroupStatus = 'active' | 'completed' | 'archived'
+export type ArchivableGroupStatus = Exclude<GroupStatus, 'archived'>
 export type PaymentMethod = 'cash' | 'upi' | 'bank_transfer' | 'other'
+export type CycleFrequency = 'weekly' | 'biweekly' | 'monthly'
 
 export interface GroupDoc {
   adminUid: string
   name: string
-  monthlyAmountMinor: number
+  contributionAmountMinor: number
   currency: string
-  dueDay: number // 1-28
-  durationMonths: number
+  frequency: CycleFrequency
+  cycleCount: number
   startDate: string // YYYY-MM-DD
   description?: string
   requirePaidToWin: boolean
   status: GroupStatus
-  currentCycleNumber: number
+  statusBeforeArchive?: ArchivableGroupStatus
+  archivedAt?: number
+  archivedBy?: string
   memberCount: number
-  paidCount: number
-  collectedAmountMinor: number
-  financialSummaryVersion?: number
+  activeCycleCount: number
+  completedCycleCount: number
   createdAt: number
 }
 
@@ -45,13 +48,7 @@ export interface GroupMemberDoc {
   joinedAt: number
 }
 
-export type CycleStatus =
-  | 'upcoming'
-  | 'payment_open'
-  | 'collection_complete'
-  | 'recipient_selected'
-  | 'payout_recorded'
-  | 'complete'
+export type CycleStatus = 'upcoming' | 'active' | 'complete'
 
 export type PayoutStatus = 'pending' | 'paid'
 
@@ -63,10 +60,12 @@ export interface PayoutInfo {
 }
 
 export interface CycleDoc {
-  monthNumber: number
-  periodStart: string // YYYY-MM-DD
-  dueDate: string // YYYY-MM-DD
+  cycleNumber: number
+  plannedStartDate: string // YYYY-MM-DD
+  startedAt: number | null
+  completedAt: number | null
   status: CycleStatus
+  expectedPaymentCount: number
   recipientMembershipId: string | null
   payout: PayoutInfo
   paidCount: number
@@ -121,16 +120,13 @@ export interface BoardDoc {
   entries: BoardEntry[]
 }
 
-export type MembershipPaymentStatus = 'pending' | 'paid' | 'overdue' | null
-
 export interface MembershipMirrorDoc {
   groupId: string
   groupName: string
   membershipId: string
-  monthlyAmountMinor: number
+  contributionAmountMinor: number
   currency: string
   status: MemberSlotStatus
-  myPaymentStatus: MembershipPaymentStatus
   selectedInCycle: number | null
   joinedAt: number
 }
@@ -153,7 +149,7 @@ export type MessageTemplate =
   | 'login_access'
   | 'member_invite'
   | 'payment_reminder'
-  | 'overdue_reminder'
+  | 'pending_payments_reminder'
   | 'recipient_notification'
   | 'payout_confirmation'
 
@@ -162,6 +158,7 @@ export type MessageStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed'
 export interface MessageLogDoc {
   groupId: string
   cycleNumber?: number
+  cycleNumbers?: number[]
   template: MessageTemplate
   toPhone: string
   membershipId: string | null

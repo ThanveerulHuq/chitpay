@@ -29,7 +29,7 @@ Password login remains available from the login screen. Existing OTP callables r
 
 English (`login_access_en`):
 
-> Hi {{name}}, here's your access link for Chitpay.
+> Hi {{name}}, here's your access link for ChitPay.
 >
 > Tap the button below to see your group.
 

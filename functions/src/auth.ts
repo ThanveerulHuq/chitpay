@@ -1,6 +1,6 @@
 import { db, auth } from './firebaseAdmin.js'
 import { onCall } from 'firebase-functions/v2/https'
-import { FieldValue } from 'firebase-admin/firestore'
+import { FieldValue, type Transaction } from 'firebase-admin/firestore'
 import {
   AppError,
   type Lang,
@@ -12,7 +12,7 @@ import { messaging } from './messaging.js'
 import { assertOtpSendable, generateOtpCode, hashOtpCode, verifyOtpDoc } from './otp.js'
 
 
-import type { GroupDoc } from '@chitapp/shared'
+import type { GroupDoc, UserDoc } from '@chitapp/shared'
 
 const LOGIN_LINK_SEND_COOLDOWN_MS = 60 * 1000
 
@@ -21,20 +21,23 @@ export function syntheticEmail(phone: string): string {
   return `${phone}@phone.chitapp.app`
 }
 
-export function assertAdminAccess(auth: any, group: GroupDoc | { adminUid: string }) {
-  if (!auth) throw new AppError('unauthenticated')
-  const isAdminRole = Array.isArray(auth.token?.roles) && auth.token.roles.includes('admin')
-  if (group.adminUid !== auth.uid || !isAdminRole) {
+export async function assertAdminAccess(
+  requestAuth: { uid: string } | undefined,
+  group?: GroupDoc | { adminUid: string },
+  transaction?: Transaction,
+): Promise<void> {
+  if (!requestAuth) throw new AppError('unauthenticated')
+  const profileRef = db.doc(`users/${requestAuth.uid}`)
+  const profileSnap = transaction
+    ? await transaction.get(profileRef)
+    : await profileRef.get()
+  const profile = profileSnap.data() as UserDoc | undefined
+  const isAdminRole = profileSnap.exists
+    && Array.isArray(profile?.roles)
+    && profile.roles.includes('admin')
+  if (!isAdminRole || (group && group.adminUid !== requestAuth.uid)) {
     throw new AppError('permission_denied')
   }
-}
-
-/** Admin phones (comma-separated env var) get the admin role at first login. */
-function rolesForPhone(phone: string): string[] {
-  const adminPhones = (process.env.ADMIN_PHONES ?? '')
-    .split(',')
-    .map((p) => p.replace(/[^0-9]/g, ''))
-  return adminPhones.includes(phone) ? ['admin', 'member'] : ['member']
 }
 
 /** Finds or creates the auth user + users/{uid} doc for a phone. */
@@ -49,17 +52,8 @@ async function ensureUser(phone: string): Promise<{ uid: string; isNew: boolean 
   const ref = db.doc(`users/${user.uid}`)
   const snap = await ref.get()
   if (!snap.exists) {
-    const roles = rolesForPhone(phone)
-    await auth.setCustomUserClaims(user.uid, { roles })
-    await ref.set({ name: '', phone, roles, createdAt: FieldValue.serverTimestamp() })
+    await ref.set({ name: '', phone, roles: ['member'], createdAt: FieldValue.serverTimestamp() })
     return { uid: user.uid, isNew: true }
-  }
-  // Keep claims/roles in sync (e.g. ADMIN_PHONES updated after first login).
-  const desired = rolesForPhone(phone)
-  const current = (user.customClaims as { roles?: string[] } | undefined)?.roles
-  if (JSON.stringify(current) !== JSON.stringify(desired)) {
-    await auth.setCustomUserClaims(user.uid, { roles: desired })
-    await ref.set({ roles: desired }, { merge: true })
   }
   return { uid: user.uid, isNew: false }
 }
@@ -129,31 +123,6 @@ export const requestLoginLink = onCall({ region: 'asia-south1', invoker: 'public
     throw toHttpsError(err, { fn: 'requestLoginLink', uid: req.auth?.uid, data: req.data })
   }
 })
-
-/**
- * Re-syncs the caller's role claims from ADMIN_PHONES. Called by the client
- * after any successful login so password logins pick up admin role too.
- */
-export const syncClaims = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
-  try {
-    if (!req.auth) throw new AppError('unauthenticated')
-    const user = await auth.getUser(req.auth.uid)
-    const email = user.email ?? ''
-    if (!email.endsWith('@phone.chitapp.app')) throw new AppError('permission_denied')
-    const phone = email.slice(0, -'@phone.chitapp.app'.length)
-    const desired = rolesForPhone(phone)
-    await auth.setCustomUserClaims(req.auth.uid, { roles: desired })
-    // also keep the Firestore profile in sync
-    await db.doc(`users/${req.auth.uid}`).set(
-      { phone, roles: desired },
-      { merge: true },
-    )
-    return { roles: desired }
-  } catch (err) {
-    throw toHttpsError(err, { fn: 'syncClaims', uid: req.auth?.uid })
-  }
-})
-
 
 export const verifyOtp = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
   try {

@@ -56,7 +56,6 @@ export async function verifyLoginLink(payload: string, phone?: string): Promise<
   } catch {
     // non-fatal
   }
-  await syncRoles()
 }
 
 function decodeFirebaseLink(payload: string): string {
@@ -74,16 +73,6 @@ export async function verifyOtp(phone: string, code: string): Promise<void> {
   )
   const res = await call({ phone: normalizePhone(phone), code })
   await signInWithCustomToken(auth, res.data.token)
-  await syncRoles()
-}
-
-async function syncRoles(): Promise<void> {
-  try {
-    await httpsCallable(functions, 'syncClaims')()
-    await auth.currentUser?.getIdToken(true)
-  } catch {
-    // non-fatal — role stays whatever it was
-  }
 }
 
 export async function signInWithPassword(
@@ -91,5 +80,4 @@ export async function signInWithPassword(
   password: string,
 ): Promise<void> {
   await signInWithEmailAndPassword(auth, syntheticEmail(phone), password)
-  await syncRoles()
 }

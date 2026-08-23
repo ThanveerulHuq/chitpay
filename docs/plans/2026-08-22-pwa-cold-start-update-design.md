@@ -2,7 +2,7 @@
 
 ## Goal
 
-Load the newest deployed frontend automatically whenever ChitApp starts, without asking the user and without reloading an app that is already in use.
+Load the newest deployed frontend automatically whenever ChitPay starts, without asking the user and without reloading an app that is already in use.
 
 ## Chosen behavior
 
@@ -15,7 +15,7 @@ Load the newest deployed frontend automatically whenever ChitApp starts, without
 
 ## Service-worker lifecycle
 
-The generated Workbox worker will use prompt-style activation internally, but ChitApp will not show a prompt. Automatic `skipWaiting` and `clientsClaim` behavior must be disabled so a browser background update cannot take control during an active session.
+The generated Workbox worker will use prompt-style activation internally, but ChitPay will not show a prompt. Automatic `skipWaiting` and `clientsClaim` behavior must be disabled so a browser background update cannot take control during an active session.
 
 Vite's automatic registration injection will also be disabled. A small startup module will own registration, update detection, activation, and the one-time reload. It will only send Workbox's `SKIP_WAITING` message when an existing worker already controls the page, so the first-ever service-worker installation does not cause an unnecessary reload.
 

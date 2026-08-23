@@ -4,6 +4,7 @@ import { isoDateLocal } from '@shared'
 import type {
   BoardDoc,
   CycleDoc,
+  CycleFrequency,
   GroupDoc,
   GroupMemberDoc,
   MembershipMirrorDoc,
@@ -16,10 +17,10 @@ import { auth } from './firebase'
 
 export async function callCreateGroup(input: {
   name: string
-  monthlyAmountMinor: number
+  contributionAmountMinor: number
   currency: string
-  dueDay: number
-  durationMonths: number
+  frequency: CycleFrequency
+  cycleCount: number
   startDate: string
   description?: string
   requirePaidToWin: boolean
@@ -27,6 +28,16 @@ export async function callCreateGroup(input: {
   const call = httpsCallable<typeof input, { groupId: string }>(functions, 'createGroup')
   const res = await call(input)
   return res.data.groupId
+}
+
+export async function callArchiveGroup(groupId: string): Promise<void> {
+  const call = httpsCallable<{ groupId: string }, { ok: boolean }>(functions, 'archiveGroup')
+  await call({ groupId })
+}
+
+export async function callUnarchiveGroup(groupId: string): Promise<void> {
+  const call = httpsCallable<{ groupId: string }, { ok: boolean }>(functions, 'unarchiveGroup')
+  await call({ groupId })
 }
 
 export interface AddMemberResult {
@@ -79,16 +90,16 @@ export async function fetchGroupMembers(
   return snap.docs.map((d) => ({ id: d.id, data: d.data() as GroupMemberDoc }))
 }
 
-export async function callStartNextCycle(groupId: string): Promise<void> {
-  const call = httpsCallable<{ groupId: string }, { ok: boolean }>(functions, 'startNextCycle')
-  await call({ groupId })
+export async function callStartCycle(groupId: string, cycleNumber: number): Promise<void> {
+  const call = httpsCallable<{ groupId: string; cycleNumber: number }, { ok: boolean }>(functions, 'startCycle')
+  await call({ groupId, cycleNumber })
 }
 
 export async function callMarkPaid(input: {
   groupId: string
   membershipId: string
   method: PaymentMethod
-  cycleNumber?: number
+  cycleNumber: number
   referenceNo?: string
   note?: string
 }): Promise<void> {
@@ -98,13 +109,32 @@ export async function callMarkPaid(input: {
 
 export async function callSendReminder(input: {
   groupId: string
-  cycleNumber?: number
+  cycleNumber: number
   membershipId?: string
-}): Promise<{ sent: number; total: number; overdue: boolean }> {
-  const call = httpsCallable<typeof input, { sent: number; total: number; overdue: boolean }>(
+}): Promise<{ sent: number; total: number }> {
+  const call = httpsCallable<typeof input, { sent: number; total: number }>(
     functions,
     'sendReminder',
   )
+  const res = await call(input)
+  return res.data
+}
+
+export async function callSendMemberReminder(input: {
+  groupId: string
+  membershipId: string
+}): Promise<{
+  sent: number
+  pendingCycleCount: number
+  cycleNumbers: number[]
+  totalDueMinor: number
+}> {
+  const call = httpsCallable<typeof input, {
+    sent: number
+    pendingCycleCount: number
+    cycleNumbers: number[]
+    totalDueMinor: number
+  }>(functions, 'sendMemberReminder')
   const res = await call(input)
   return res.data
 }
@@ -134,7 +164,9 @@ export async function callReversePayment(input: {
 
 export async function callConfirmSelection(input: {
   groupId: string
+  cycleNumber: number
   membershipId: string
+  willingMembershipIds: string[]
 }): Promise<{ ok: boolean; poolAmountMinor: number }> {
   const call = httpsCallable<typeof input, { ok: boolean; poolAmountMinor: number }>(
     functions,
@@ -146,11 +178,24 @@ export async function callConfirmSelection(input: {
 
 export async function callRecordPayout(input: {
   groupId: string
+  cycleNumber: number
   amountMinor?: number
+}): Promise<{ ok: boolean }> {
+  const call = httpsCallable<typeof input, { ok: boolean }>(
+    functions,
+    'recordPayout',
+  )
+  const res = await call(input)
+  return res.data
+}
+
+export async function callCompleteCycle(input: {
+  groupId: string
+  cycleNumber: number
 }): Promise<{ ok: boolean; completedGroup: boolean }> {
   const call = httpsCallable<typeof input, { ok: boolean; completedGroup: boolean }>(
     functions,
-    'recordPayout',
+    'completeCycle',
   )
   const res = await call(input)
   return res.data

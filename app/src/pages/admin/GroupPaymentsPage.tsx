@@ -12,7 +12,8 @@ import type { GroupDoc } from '@shared'
 import DateRangeFields from '@/components/DateRangeFields'
 import PaymentHistoryList from '@/components/PaymentHistoryList'
 import LanguageToggle from '@/components/LanguageToggle'
-import { Page, PageHeader, Skeleton } from '@/components/ui'
+import { Page, PageHeader } from '@/components/ui'
+import { PaymentsLoadingScreen } from '@/components/LoadingScreens'
 import { useT } from '@/i18n'
 import { useAuth } from '@/lib/useAuth'
 import { groupPath, groupsPath, useExperience } from '@/lib/roleRoutes'
@@ -52,13 +53,7 @@ export default function GroupPaymentsPage() {
   const totalMinor = visible.reduce((sum, r) => sum + r.amountMinor, 0)
 
   if (authLoading || !rows) {
-    return (
-      <Page>
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="mt-4 h-14 w-full" />
-        <Skeleton className="mt-6 h-64 w-full" />
-      </Page>
-    )
+    return <PaymentsLoadingScreen />
   }
   if (!isAdmin) return <Navigate to={groupPath('member', groupId)} replace />
   if (!group) return <Navigate to={groupsPath(experience)} replace />

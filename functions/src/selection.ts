@@ -1,7 +1,12 @@
 import { db, auth } from './firebaseAdmin.js'
 import { onCall } from 'firebase-functions/v2/https'
 import { FieldValue } from 'firebase-admin/firestore'
-import { AppError, formatMinor } from '@chitapp/shared'
+import {
+  AppError,
+  assertGroupWritable,
+  formatMinor,
+  validateSelectionParticipants,
+} from '@chitapp/shared'
 import type {
   CycleDoc,
   GroupDoc,
@@ -18,14 +23,22 @@ import { messaging } from './messaging.js'
 
 interface ConfirmSelectionInput {
   groupId: string
+  cycleNumber: number
   membershipId: string
+  willingMembershipIds: string[]
 }
 
 export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
   try {
     const uid = req.auth?.uid
     if (!uid) throw new AppError('unauthenticated')
-    const { groupId, membershipId } = req.data as ConfirmSelectionInput
+    const { groupId, cycleNumber, membershipId, willingMembershipIds } = req.data as ConfirmSelectionInput
+    if (
+      !Array.isArray(willingMembershipIds)
+      || willingMembershipIds.some((id) => typeof id !== 'string' || !id)
+    ) {
+      throw new AppError('invalid_argument')
+    }
 
     let poolAmountMinor = 0
     let notifiedName = ''
@@ -38,9 +51,10 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
       const groupSnap = await tx.get(groupRef)
       const group = groupSnap.data() as GroupDoc | undefined
       if (!groupSnap.exists || !group) throw new AppError('not_found')
-      assertAdminAccess(req.auth, group)
+      await assertAdminAccess(req.auth, group, tx)
+      assertGroupWritable(group)
 
-      const n = group.currentCycleNumber
+      const n = Math.floor(Number(cycleNumber))
       if (!n || n < 1) throw new AppError('invalid_transition')
 
       const cycleRef = groupRef.collection('cycles').doc(String(n))
@@ -51,7 +65,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         // Deterministic loser of a double-confirm race.
         throw new AppError('already_selected')
       }
-      if (cycle.status !== 'payment_open' && cycle.status !== 'collection_complete') {
+      if (cycle.status !== 'active') {
         throw new AppError('invalid_transition')
       }
 
@@ -84,16 +98,23 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         }
         eligibleMembershipIds.push(m.id)
       }
-      if (!eligibleMembershipIds.includes(membershipId)) {
+      const participantError = validateSelectionParticipants(
+        membershipId,
+        willingMembershipIds,
+        eligibleMembershipIds,
+      )
+      if (participantError === 'ineligible_participant') {
         throw new AppError('not_eligible')
       }
+      if (participantError) {
+        throw new AppError('invalid_argument')
+      }
 
-      poolAmountMinor = group.monthlyAmountMinor * Math.max(group.memberCount, 1)
+      poolAmountMinor = group.contributionAmountMinor * Math.max(cycle.expectedPaymentCount, 1)
 
       const now = FieldValue.serverTimestamp() as unknown as number
 
       tx.update(cycleRef, {
-        status: 'recipient_selected',
         recipientMembershipId: membershipId,
       })
 
@@ -110,8 +131,8 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         cycleNumber: n,
         selectedMembershipId: membershipId,
         selectedMemberName: member.displayName,
-        eligibleMembershipIds,
-        eligibleCount: eligibleMembershipIds.length,
+        eligibleMembershipIds: willingMembershipIds,
+        eligibleCount: willingMembershipIds.length,
         performedBy: uid,
         poolAmountMinor,
         selectedAt: now,
@@ -145,6 +166,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         }
         const log: MessageLogDoc = {
           groupId,
+          cycleNumber,
           template: 'recipient_notification',
           toPhone: user.phone,
           membershipId,

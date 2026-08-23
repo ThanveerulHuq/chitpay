@@ -87,6 +87,19 @@ firebase deploy --only functions
 The adapter uses `https://app.kwic.in/api/v1/api/v1/push` by default. Copy
 `functions/.env.example` to `functions/.env` to override any value.
 
+## Admin provisioning
+
+Admin roles are stored in `users/{uid}.roles` in Firestore and are assigned only
+through the trusted local script. Authenticate with Application Default
+Credentials, then run:
+
+```bash
+npm run admin:create --prefix functions -- +919003711581 "Imthiyaz"
+```
+
+The command is safe to rerun. It creates or reuses the synthetic-email Firebase
+Auth user and merges `admin` and `member` into the Firestore profile roles.
+
 ## Repository structure
 
 ```text

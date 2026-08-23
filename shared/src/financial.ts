@@ -17,3 +17,13 @@ export function summarizePayments(payments: Pick<PaymentDoc, 'status' | 'amountM
     { paidCount: 0, collectedAmountMinor: 0 },
   )
 }
+
+export function summarizePendingCyclePayments(
+  payments: { cycleNumber: number; amountMinor: number }[],
+): { cycleNumbers: number[]; totalDueMinor: number } {
+  const ordered = [...payments].sort((a, b) => a.cycleNumber - b.cycleNumber)
+  return {
+    cycleNumbers: ordered.map((payment) => payment.cycleNumber),
+    totalDueMinor: ordered.reduce((total, payment) => total + payment.amountMinor, 0),
+  }
+}
