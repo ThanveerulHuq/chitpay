@@ -11,19 +11,28 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
-      includeAssets: ['favicon.svg'],
+      includeAssets: [
+        'brand/chitpay-app-icon-hands.png',
+        'chitpay-pwa-192.png',
+        'chitpay-pwa-512.png',
+      ],
       manifest: {
-        name: 'ChitApp',
-        short_name: 'ChitApp',
-        description: 'Simple group savings management',
+        name: 'ChitPay',
+        short_name: 'ChitPay',
+        description: 'Collect. Select. Manage.',
         theme_color: '#059669',
         background_color: '#fafaf9',
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/chitpay-pwa-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/chitpay-pwa-512.png', sizes: '512x512', type: 'image/png' },
+          {
+            src: '/chitpay-pwa-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
         ],
       },
       workbox: {

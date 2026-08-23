@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Users, CalendarBlank, CurrencyInr, Gear } from '@phosphor-icons/react'
-import { fetchMyGroups, fetchMyMemberships } from '@/lib/api'
+import { Plus, Users, CalendarBlank, CurrencyInr, Gear, Receipt } from '@phosphor-icons/react'
+import { fetchGroup, fetchMyGroups, fetchMyMemberships } from '@/lib/api'
 import { useAuth } from '@/lib/useAuth'
 import { formatMinor } from '@shared'
-import type { MembershipMirrorDoc } from '@shared'
+import type { GroupDoc, MembershipMirrorDoc } from '@shared'
 import { Chip, Page, Skeleton, Button } from '@/components/ui'
 import { useT } from '@/i18n'
 import { useViewMode } from '@/lib/useViewMode'
+import PaymentSheet from '@/components/PaymentSheet'
 
 type ListEntry =
   | { kind: 'admin'; id: string; name: string; amountMinor: number; currency: string; memberCount: number; cycleNumber: number; durationMonths: number }
@@ -19,6 +20,8 @@ export default function GroupsListPage() {
   const { viewMode } = useViewMode()
   const [allEntries, setAllEntries] = useState<ListEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [paymentGroup, setPaymentGroup] = useState<{ id: string; data: GroupDoc } | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -55,7 +58,7 @@ export default function GroupsListPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [refreshKey])
 
   const entries = allEntries.filter((e) => isAdmin ? e.kind === viewMode : e.kind === 'member')
 
@@ -120,17 +123,15 @@ export default function GroupsListPage() {
       <ul className="space-y-3">
         {entries.map((entry) => (
           <li key={`${entry.kind}-${entry.id}`}>
-            <Link
-              to={`/groups/${entry.id}${entry.kind === 'member' ? '?view=member' : ''}`}
-              className="block rounded-2xl border border-line bg-surface p-4 transition-colors hover:bg-sunken active:scale-[0.99] motion-safe:transition-transform"
-            >
-              <div className="flex items-baseline justify-between gap-3">
-                <h2 className="truncate font-semibold">{entry.name}</h2>
-                <span className="shrink-0 text-sm text-muted">
-                  {t('common.perMonth', { amount: formatMinor(entry.amountMinor, entry.currency) })}
-                </span>
-              </div>
-              <div className="mt-2.5 flex items-center gap-3 text-xs text-muted">
+            <div className="rounded-2xl border border-line bg-surface p-4 transition-colors hover:bg-sunken">
+              <Link to={`/groups/${entry.id}${entry.kind === 'member' ? '?view=member' : ''}`} className="block active:scale-[0.99] motion-safe:transition-transform">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 className="truncate font-semibold">{entry.name}</h2>
+                  <span className="shrink-0 text-sm text-muted">
+                    {t('common.perMonth', { amount: formatMinor(entry.amountMinor, entry.currency) })}
+                  </span>
+                </div>
+                <div className="mt-2.5 flex items-center gap-3 text-xs text-muted">
                 {entry.kind === 'admin' ? (
                   <>
                     <Chip tone="neutral">{t('common.admin')}</Chip>
@@ -151,11 +152,21 @@ export default function GroupsListPage() {
                     {entry.myStatus == null ? t('status.notStarted') : entry.myStatus === 'paid' ? t('status.paid') : t('status.paymentDue')}
                   </Chip>
                 )}
-              </div>
-            </Link>
+                </div>
+              </Link>
+              {entry.kind === 'admin' && viewMode === 'admin' && entry.cycleNumber > 0 && (
+                <button type="button" onClick={async () => { const group = await fetchGroup(entry.id); if (group) setPaymentGroup(group) }} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-accent/30 bg-accent-soft py-2.5 text-sm font-semibold text-accent-strong dark:text-accent">
+                  <Receipt size={16} weight="bold" />
+                  {t('workspace.recordPayment')}
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>
+      {paymentGroup && paymentGroup.data.currentCycleNumber > 0 && (
+        <PaymentSheet groupId={paymentGroup.id} group={paymentGroup.data} cycleNumber={paymentGroup.data.currentCycleNumber} onClose={() => setPaymentGroup(null)} onDone={() => { setPaymentGroup(null); setRefreshKey((value) => value + 1) }} />
+      )}
     </Page>
   )
 }
@@ -190,4 +201,3 @@ function AdminKpiStrip({ entries }: { entries: ListEntry[] }) {
     </dl>
   )
 }
-

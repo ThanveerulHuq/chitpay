@@ -6,7 +6,7 @@ import {
   generateMemberPassword,
   normalizePhone,
 } from '@chitapp/shared'
-import type { GroupDoc } from '@chitapp/shared'
+import type { BoardDoc, BoardEntry, GroupDoc, PaymentDoc } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
 import { syntheticEmail, assertAdminAccess } from './auth.js'
 
@@ -41,6 +41,8 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
   try {
     const uid = req.auth?.uid
     if (!uid) throw new AppError('unauthenticated')
+    const isAdminRole = Array.isArray(req.auth?.token?.roles) && req.auth?.token?.roles.includes('admin')
+    if (!isAdminRole) throw new AppError('permission_denied')
     const input = req.data as CreateGroupInput
 
     const name = String(input.name ?? '').trim()
@@ -70,6 +72,7 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
       memberCount: 0,
       paidCount: 0,
       collectedAmountMinor: 0,
+      financialSummaryVersion: 1,
       createdAt: FieldValue.serverTimestamp() as unknown as number,
     }
 
@@ -151,6 +154,13 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       const slotNo = memberCount + 1
       const memberRef = groupRef.collection('members').doc()
       const membershipId = memberRef.id
+      let currentBoard: BoardDoc | undefined
+      if (group.currentCycleNumber > 0) {
+        const boardSnap = await tx.get(
+          groupRef.collection('cycles').doc(String(group.currentCycleNumber)).collection('board').doc('board'),
+        )
+        currentBoard = boardSnap.data() as BoardDoc | undefined
+      }
 
       tx.set(memberRef, {
         uid,
@@ -158,9 +168,31 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
         displayName: name,
         status: 'active',
         selectedInCycle: null,
+        totalContributedMinor: 0,
+        paidCycleCount: 0,
         joinedAt: FieldValue.serverTimestamp(),
       })
       tx.update(groupRef, { memberCount: FieldValue.increment(1) })
+
+      // A member added after a cycle starts joins that cycle as a pending slot.
+      if (group.currentCycleNumber > 0) {
+        const cycleRef = groupRef.collection('cycles').doc(String(group.currentCycleNumber))
+        const boardRef = cycleRef.collection('board').doc('board')
+        tx.set(cycleRef.collection('payments').doc(membershipId), {
+          amountMinor: group.monthlyAmountMinor,
+          status: 'pending',
+          method: null,
+          referenceNo: null,
+          note: null,
+          paidAt: null,
+          recordedBy: null,
+          updatedAt: null,
+        } satisfies PaymentDoc)
+        if (currentBoard) {
+          const entry: BoardEntry = { membershipId, name, status: 'pending', method: null }
+          tx.set(boardRef, { entries: [...currentBoard.entries, entry] } satisfies BoardDoc)
+        }
+      }
 
       // member-side mirrors
       tx.set(db.doc(`users/${uid}/memberships/${membershipId}`), {
