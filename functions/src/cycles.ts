@@ -283,7 +283,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
     const board = boardSnap.data() as BoardDoc | undefined
     if (!board) throw new AppError('not_found')
 
-    const template = 'payment_reminder'
+    const template = 'pending_payments_reminder'
 
     let targets = board.entries.filter((e) => e.status === 'pending')
     if (membershipId) targets = targets.filter((e) => e.membershipId === membershipId)
@@ -305,7 +305,8 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
         const res = await messaging.sendTemplate(user.phone, template, {
           member_name: member.displayName,
           group_name: group.name,
-          contribution_amount: formatMinor(group.contributionAmountMinor, group.currency),
+          pending_cycles: String(n),
+          total_due: formatMinor(group.contributionAmountMinor, group.currency),
           group_id: groupId,
         }, language)
         providerMessageId = res.providerMessageId
@@ -387,7 +388,6 @@ export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'publ
         member_name: member.displayName,
         group_name: group.name,
         pending_cycles: cycleNumbers.join(', '),
-        pending_count: String(cycleNumbers.length),
         total_due: formatMinor(totalDueMinor, group.currency),
         group_id: groupId,
       }, language)
