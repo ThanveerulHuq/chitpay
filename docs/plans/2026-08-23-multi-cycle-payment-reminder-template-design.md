@@ -19,7 +19,7 @@ Both templates use the same variables:
 - `total_due`
 - `group_id` as the dynamic ChitPay button URL suffix
 
-The button URL is `https://chitpay.web.app/member/groups/{{group_id}}/members`, which opens the role-namespaced member view for the group.
+The button URL is `https://chitpay.web.app/member/groups/{{group_id}}`. The dynamic variable remains at the end as required by WhatsApp, and the app's group-root redirect opens the role-namespaced members view.
 
 The message describes pending cycle contributions and their total. It does not call the contribution monthly and does not require a single due date.
 
