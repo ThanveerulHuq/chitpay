@@ -19,7 +19,8 @@ export default function CreateGroupPage() {
   const [frequency, setFrequency] = useState<CycleFrequency>('monthly')
   const [startDate, setStartDate] = useState('')
   const [description, setDescription] = useState('')
-  const [requirePaidToWin, setRequirePaidToWin] = useState(false)
+  const [showOtherMembers, setShowOtherMembers] = useState(true)
+  const [showOtherMemberDues, setShowOtherMemberDues] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -36,7 +37,8 @@ export default function CreateGroupPage() {
         cycleCount: Number(cycleCount),
         startDate,
         description: description || undefined,
-        requirePaidToWin,
+        showOtherMembers,
+        showOtherMemberDues,
       })
       navigate(groupPath(experience, groupId), { replace: true })
     } catch (err) {
@@ -146,14 +148,32 @@ export default function CreateGroupPage() {
           <label className="flex items-start gap-3 text-sm">
             <input
               type="checkbox"
-              checked={requirePaidToWin}
-              onChange={(e) => setRequirePaidToWin(e.target.checked)}
+              checked={showOtherMembers}
+              onChange={(e) => {
+                setShowOtherMembers(e.target.checked)
+                if (!e.target.checked) setShowOtherMemberDues(false)
+              }}
               className="mt-0.5 size-5 accent-accent"
             />
             <span>
-              {t('createGroup.requirePaidLabel')}
+              {t('createGroup.showOtherMembersLabel')}
               <span className="block text-xs text-muted">
-                {t('createGroup.requirePaidHint')}
+                {t('createGroup.showOtherMembersHint')}
+              </span>
+            </span>
+          </label>
+          <label className={`flex items-start gap-3 text-sm ${showOtherMembers ? '' : 'text-faint'}`}>
+            <input
+              type="checkbox"
+              checked={showOtherMemberDues}
+              disabled={!showOtherMembers}
+              onChange={(e) => setShowOtherMemberDues(e.target.checked)}
+              className="mt-0.5 size-5 accent-accent disabled:opacity-50"
+            />
+            <span>
+              {t('createGroup.showOtherMemberDuesLabel')}
+              <span className="block text-xs text-muted">
+                {t('createGroup.showOtherMemberDuesHint')}
               </span>
             </span>
           </label>

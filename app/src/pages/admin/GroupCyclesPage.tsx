@@ -16,7 +16,7 @@ function CyclesContent() {
   const { t } = useI18n()
   const locale = useLocale()
   const experience = useExperience()
-  const { groupId, group, members, cycles, reload, isReadOnly } = useGroupWorkspace()
+  const { groupId, group, members, cycles, reload, isReadOnly, isMemberView, showOtherMemberDues } = useGroupWorkspace()
   const [busyCycle, setBusyCycle] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,7 +48,7 @@ function CyclesContent() {
             <Link to={groupPath(experience, groupId, `cycles/${id}`)} className="min-w-0 flex-1">
               <div className="flex items-center gap-2"><h2 className="font-bold">{formatCycleName(data.plannedStartDate, group.frequency, locale, t)}</h2><StatusChip status={data.status} t={t} /></div>
               <p className="mt-1 text-sm text-muted">{t('workspace.plannedStart', { date: formatIsoDate(data.plannedStartDate) })}</p>
-              {data.status !== 'upcoming' && <div className="mt-3 grid grid-cols-2 gap-2 text-sm"><span className="text-muted">{t('workspace.collected')}</span><span className="text-right font-semibold">{formatMinor(data.collectedAmountMinor, group.currency)} / {formatMinor(expectedAmount, group.currency)}</span><span className="text-muted">{t('workspace.winner')}</span><span className="flex items-center justify-end gap-1 font-semibold">{winner ? <><Trophy size={14} />{winner}</> : t('workspace.notSelected')}</span></div>}
+              {data.status !== 'upcoming' && <div className="mt-3 grid grid-cols-2 gap-2 text-sm">{(!isMemberView || showOtherMemberDues) && <><span className="text-muted">{t('workspace.collected')}</span><span className="text-right font-semibold">{formatMinor(data.collectedAmountMinor, group.currency)} / {formatMinor(expectedAmount, group.currency)}</span></>}<span className="text-muted">{t('workspace.winner')}</span><span className="flex items-center justify-end gap-1 font-semibold">{winner ? <><Trophy size={14} />{winner}</> : t('workspace.notSelected')}</span></div>}
             </Link>
             {data.status === 'upcoming' && !isReadOnly ? <div className="flex shrink-0 flex-col items-end gap-1"><Button className="px-3 py-2 text-sm" onClick={() => void start(data.cycleNumber)} disabled={busyCycle !== null || startBlockReason !== null} title={startBlockMessage ?? undefined}><Play size={15} weight="fill" />{busyCycle === data.cycleNumber ? t('dash.starting') : t('workspace.startCycle')}</Button>{startBlockMessage && <p className="max-w-36 text-right text-xs text-muted">{startBlockMessage}</p>}</div> : <ArrowRight size={18} className="mt-1 text-faint" />}
           </div>

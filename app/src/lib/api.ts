@@ -23,11 +23,22 @@ export async function callCreateGroup(input: {
   cycleCount: number
   startDate: string
   description?: string
-  requirePaidToWin: boolean
+  showOtherMembers?: boolean
+  showOtherMemberDues?: boolean
 }): Promise<string> {
   const call = httpsCallable<typeof input, { groupId: string }>(functions, 'createGroup')
   const res = await call(input)
   return res.data.groupId
+}
+
+export async function callUpdateGroupSettings(input: {
+  groupId: string
+  name: string
+  showOtherMembers: boolean
+  showOtherMemberDues: boolean
+}): Promise<void> {
+  const call = httpsCallable<typeof input, { ok: boolean }>(functions, 'updateGroupSettings')
+  await call(input)
 }
 
 export async function callArchiveGroup(groupId: string): Promise<void> {

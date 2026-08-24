@@ -153,7 +153,7 @@ function AdminKpiStrip({ entries }: { entries: ListEntry[] }) {
   const adminEntries = entries.filter((e): e is Extract<ListEntry, { kind: 'admin' }> => e.kind === 'admin')
   if (adminEntries.length === 0) return null
 
-  const chits = adminEntries.reduce((sum, g) => sum + g.memberCount, 0)
+  const shares = adminEntries.reduce((sum, g) => sum + g.memberCount, 0)
   const monthlyPool = adminEntries.reduce(
     (sum, g) => sum + g.amountMinor * g.memberCount,
     0,
@@ -167,7 +167,7 @@ function AdminKpiStrip({ entries }: { entries: ListEntry[] }) {
       </div>
       <div className="px-2 py-3">
         <dt className="text-[11px] uppercase tracking-wide text-faint">{t('groups.kpiMembers')}</dt>
-        <dd className="mt-0.5 text-sm font-bold tabular-nums">{chits}</dd>
+        <dd className="mt-0.5 text-sm font-bold tabular-nums">{shares}</dd>
       </div>
       <div className="px-2 py-3">
         <dt className="text-[11px] uppercase tracking-wide text-faint">{t('groups.kpiMonthlyPool')}</dt>

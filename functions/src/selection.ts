@@ -12,7 +12,6 @@ import type {
   GroupDoc,
   GroupMemberDoc,
   MessageLogDoc,
-  PaymentDoc,
   SelectionAuditDoc,
   UserDoc,
 } from '@chitapp/shared'
@@ -76,14 +75,6 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
       if (member.status !== 'active') throw new AppError('not_eligible')
       if (member.selectedInCycle != null) throw new AppError('not_eligible')
 
-      if (group.requirePaidToWin) {
-        const paymentSnap = await tx.get(
-          cycleRef.collection('payments').doc(membershipId),
-        )
-        const payment = paymentSnap.data() as PaymentDoc | undefined
-        if (!payment || payment.status !== 'paid') throw new AppError('not_eligible')
-      }
-
       // Eligibility snapshot for the immutable audit record.
       const membersSnap = await tx.get(
         groupRef.collection('members').where('status', '==', 'active'),
@@ -92,10 +83,6 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
       for (const m of membersSnap.docs) {
         const candidate = m.data() as GroupMemberDoc
         if (candidate.selectedInCycle != null) continue
-        if (group.requirePaidToWin) {
-          const p = await tx.get(cycleRef.collection('payments').doc(m.id))
-          if ((p.data() as PaymentDoc | undefined)?.status !== 'paid') continue
-        }
         eligibleMembershipIds.push(m.id)
       }
       const participantError = validateSelectionParticipants(

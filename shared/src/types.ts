@@ -23,7 +23,10 @@ export interface GroupDoc {
   cycleCount: number
   startDate: string // YYYY-MM-DD
   description?: string
-  requirePaidToWin: boolean
+  /** Missing on legacy groups and treated as enabled. */
+  showOtherMembers?: boolean
+  /** Missing on legacy groups and treated as enabled. */
+  showOtherMemberDues?: boolean
   status: GroupStatus
   statusBeforeArchive?: ArchivableGroupStatus
   archivedAt?: number

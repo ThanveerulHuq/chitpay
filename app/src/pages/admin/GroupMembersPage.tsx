@@ -26,7 +26,7 @@ export default function GroupMembersPage() {
 
 function MembersContent() {
   const { t } = useI18n()
-  const { groupId, group, members, cycles, reload, isReadOnly } = useGroupWorkspace()
+  const { groupId, group, members, cycles, reload, isReadOnly, isMemberView, ownMembershipIds, showOtherMembers, showOtherMemberDues } = useGroupWorkspace()
   const [search, setSearch] = useState('')
   const [fallbackTotals, setFallbackTotals] = useState<Map<string, { total: number; paidCycles: number }>>(new Map())
   const [pendingByMember, setPendingByMember] = useState<Map<string, number[]>>(new Map())
@@ -47,7 +47,8 @@ function MembersContent() {
     let cancelled = false
     const needsFallback = members.some(({ data }) => typeof data.totalContributedMinor !== 'number' || typeof data.paidCycleCount !== 'number')
     if (needsFallback) {
-      void fetchGroupPaymentRecords(groupId).then((records) => {
+      const visibleMembershipIds = isMemberView && !showOtherMemberDues ? [...ownMembershipIds] : undefined
+      void fetchGroupPaymentRecords(groupId, visibleMembershipIds).then((records) => {
         if (cancelled) return
         const totals = new Map<string, { total: number; paidCycles: number }>()
         for (const record of records) {
@@ -62,7 +63,7 @@ function MembersContent() {
     return () => {
       cancelled = true
     }
-  }, [groupId, members])
+  }, [groupId, isMemberView, members, ownMembershipIds, showOtherMemberDues])
 
   useEffect(() => {
     let cancelled = false
@@ -75,6 +76,7 @@ function MembersContent() {
       for (const { cycleNumber, board } of boards) {
         for (const entry of board ?? []) {
           if (entry.status !== 'pending') continue
+          if (isMemberView && !showOtherMemberDues && !ownMembershipIds.has(entry.membershipId)) continue
           const pendingCycles = next.get(entry.membershipId) ?? []
           pendingCycles.push(cycleNumber)
           next.set(entry.membershipId, pendingCycles)
@@ -87,7 +89,7 @@ function MembersContent() {
     return () => {
       cancelled = true
     }
-  }, [activeCycleNumbers, groupId, pendingRefresh, t])
+  }, [activeCycleNumbers, groupId, isMemberView, ownMembershipIds, pendingRefresh, showOtherMemberDues, t])
 
   async function remindMember(person: MemberPerson) {
     setBusyMember(person.uid)
@@ -109,12 +111,13 @@ function MembersContent() {
     const grouped = new Map<string, MemberPerson>()
     for (const slot of members) {
       if (slot.data.status !== 'active') continue
+      if (isMemberView && !showOtherMembers && !ownMembershipIds.has(slot.id)) continue
       const person = grouped.get(slot.data.uid) ?? { uid: slot.data.uid, name: slot.data.displayName, slots: [] }
       person.slots.push(slot)
       grouped.set(slot.data.uid, person)
     }
     return [...grouped.values()]
-  }, [members])
+  }, [isMemberView, members, ownMembershipIds, showOtherMembers])
   const visible = people.filter((person) => person.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
@@ -133,6 +136,8 @@ function MembersContent() {
         <ul className="mt-5 divide-y divide-line rounded-2xl border border-line bg-surface px-4">
           {visible.map((person) => {
             const ids = person.slots.map((slot) => slot.id)
+            const isOwnMembership = ids.some((id) => ownMembershipIds.has(id))
+            const canSeeDues = !isMemberView || showOtherMemberDues || isOwnMembership
             const total = person.slots.reduce((sum, slot) => {
               const fallback = fallbackTotals.get(slot.id)
               return sum + (typeof slot.data.totalContributedMinor === 'number' ? slot.data.totalContributedMinor : fallback?.total ?? 0)
@@ -151,10 +156,10 @@ function MembersContent() {
                     <p className="truncate text-sm font-semibold">{person.name}</p>
                     <Chip tone="neutral">{t('workspace.memberChitCount', { count: person.slots.length })}</Chip>
                   </div>
-                  <p className="mt-1 text-xs text-muted">
+                  {canSeeDues && <p className="mt-1 text-xs text-muted">
                     {formatMinor(total, group.currency)} · {t('workspace.paidChitPayments', { paid: paidPayments, total: group.cycleCount * person.slots.length })}
-                  </p>
-                  {pendingPaymentCount > 0 && (
+                  </p>}
+                  {canSeeDues && pendingPaymentCount > 0 && (
                     <p className="mt-1 text-xs font-medium text-ink">
                       {t('workspace.totalPending', { amount: formatMinor(totalPending, group.currency) })}
                     </p>

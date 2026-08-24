@@ -45,7 +45,7 @@ export function SelectionSection({ groupId, group, cycle, board, members, onChan
   const memberById = new Map(members.map(({ id, data }) => [id, data]))
   const eligible = board.filter((entry) => {
     const member = memberById.get(entry.membershipId)
-    return Boolean(member && member.status === 'active' && member.selectedInCycle == null && (!group.requirePaidToWin || entry.status === 'paid'))
+    return Boolean(member && member.status === 'active' && member.selectedInCycle == null)
   })
   const willing = eligible.filter((entry) => willingMembershipIds.has(entry.membershipId))
   const visibleEligible = eligible.filter((entry) => entry.name.toLowerCase().includes(search.trim().toLowerCase()))

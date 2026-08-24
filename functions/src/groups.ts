@@ -21,7 +21,15 @@ interface CreateGroupInput {
   cycleCount: number
   startDate: string
   description?: string
-  requirePaidToWin: boolean
+  showOtherMembers?: boolean
+  showOtherMemberDues?: boolean
+}
+
+interface UpdateGroupSettingsInput {
+  groupId: string
+  name: string
+  showOtherMembers: boolean
+  showOtherMemberDues: boolean
 }
 
 
@@ -48,6 +56,8 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
     const cycleCount = Math.floor(Number(input.cycleCount))
     const startDate = String(input.startDate ?? '')
     const description = input.description?.trim()
+    const showOtherMembers = input.showOtherMembers !== false
+    const showOtherMemberDues = showOtherMembers && input.showOtherMemberDues !== false
 
     if (!name) throw new AppError('invalid_argument', 'Group name is required.')
     if (!(contributionAmountMinor > 0)) throw new AppError('invalid_argument', 'Invalid contribution.')
@@ -74,7 +84,8 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
       cycleCount,
       startDate,
       ...(description ? { description } : {}),
-      requirePaidToWin: Boolean(input.requirePaidToWin),
+      showOtherMembers,
+      showOtherMemberDues,
       status: 'active',
       memberCount: 0,
       activeCycleCount: 0,
@@ -108,6 +119,47 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
     return { groupId: ref.id }
   } catch (err) {
     throw toHttpsError(err, { fn: 'createGroup', uid: req.auth?.uid, data: req.data })
+  }
+})
+
+export const updateGroupSettings = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const input = req.data as UpdateGroupSettingsInput
+    const groupId = String(input?.groupId ?? '')
+    const name = String(input?.name ?? '').trim()
+    if (!groupId) throw new AppError('invalid_argument', 'Group is required.')
+    if (!name) throw new AppError('invalid_argument', 'Group name is required.')
+    if (typeof input.showOtherMembers !== 'boolean' || typeof input.showOtherMemberDues !== 'boolean') {
+      throw new AppError('invalid_argument', 'Invalid group visibility settings.')
+    }
+
+    const showOtherMembers = input.showOtherMembers
+    const showOtherMemberDues = showOtherMembers && input.showOtherMemberDues
+
+    await db.runTransaction(async (tx) => {
+      const groupRef = db.doc(`groups/${groupId}`)
+      const groupSnap = await tx.get(groupRef)
+      const group = groupSnap.data() as GroupDoc | undefined
+      if (!groupSnap.exists || !group) throw new AppError('not_found')
+      await assertAdminAccess(req.auth, group, tx)
+      assertGroupWritable(group)
+
+      const membersSnap = await tx.get(groupRef.collection('members'))
+      tx.update(groupRef, { name, showOtherMembers, showOtherMemberDues })
+      for (const memberSnap of membersSnap.docs) {
+        const member = memberSnap.data() as GroupMemberDoc
+        if (member.status !== 'active') continue
+        tx.set(
+          db.doc(`users/${member.uid}/memberships/${memberSnap.id}`),
+          { groupName: name },
+          { merge: true },
+        )
+      }
+    })
+
+    return { ok: true, name, showOtherMembers, showOtherMemberDues }
+  } catch (err) {
+    throw toHttpsError(err, { fn: 'updateGroupSettings', uid: req.auth?.uid, data: req.data })
   }
 })
 
@@ -192,7 +244,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
     const chitCount = Number(input.chitCount ?? 1)
     if (!name) throw new AppError('invalid_argument', 'Member name is required.')
     if (!Number.isInteger(chitCount) || chitCount < 1 || chitCount > 100) {
-      throw new AppError('invalid_argument', 'Number of chits must be between 1 and 100.')
+      throw new AppError('invalid_argument', 'Number of shares must be between 1 and 100.')
     }
 
     // Duplicate-slot guard: same person already has an active slot in this group.
@@ -209,7 +261,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       if (!dup.empty) {
         throw new AppError(
           'already_exists',
-          'This number is already a member of this group. Edit their existing chit count instead.',
+          'This number is already a member of this group. Edit their existing share count instead.',
         )
       }
     }
@@ -385,7 +437,7 @@ export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'p
     const membershipId = String(input.membershipId ?? '')
     const targetCount = Number(input.chitCount)
     if (!groupId || !membershipId || !Number.isInteger(targetCount) || targetCount < 1 || targetCount > 100) {
-      throw new AppError('invalid_argument', 'Number of chits must be between 1 and 100.')
+      throw new AppError('invalid_argument', 'Number of shares must be between 1 and 100.')
     }
 
     return await db.runTransaction(async (tx) => {
@@ -398,7 +450,7 @@ export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'p
       await assertAdminAccess(req.auth, group, tx)
       assertGroupWritable(group)
       if ((group.completedCycleCount ?? 0) > 0) {
-        throw new AppError('invalid_transition', 'Chit counts are locked after the first completed cycle.')
+        throw new AppError('invalid_transition', 'Share counts are locked after the first completed cycle.')
       }
       if (member.status !== 'active') throw new AppError('invalid_argument', 'This membership is inactive.')
 
@@ -506,7 +558,7 @@ export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'p
       if (removable.length < removeCount) {
         throw new AppError(
           'invalid_transition',
-          `Cannot reduce below ${currentCount - removable.length}; some chits already have payment or selection activity.`,
+          `Cannot reduce below ${currentCount - removable.length}; some shares already have payment or selection activity.`,
         )
       }
 
