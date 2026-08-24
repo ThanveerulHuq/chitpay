@@ -8,6 +8,8 @@ import { Button, Dropdown, ErrorNote, Field, Input, Textarea } from '@/component
 import { useI18n } from '@/i18n'
 import { PaymentMethodIcon, methodLabel } from '@/pages/admin/GroupDashboardPage'
 import { useBodyLock } from '@/lib/useBodyLock'
+import { useLocale } from '@/lib/format'
+import { formatCycleName, plannedDateForCycle } from '@/lib/cycleName'
 
 export default function PaymentSheet({
   groupId,
@@ -27,6 +29,7 @@ export default function PaymentSheet({
   onDone: () => void
 }) {
   const { t, lang } = useI18n()
+  const locale = useLocale()
   const [selectedCycleNumber, setSelectedCycleNumber] = useState(
     cycleNumber ?? pendingCycleNumbers?.[0] ?? 0,
   )
@@ -100,7 +103,7 @@ export default function PaymentSheet({
         <div className="flex shrink-0 items-start justify-between border-b border-line/60 p-5 pb-4">
           <div>
             <h2 className="text-lg font-bold">{t('workspace.recordPayment')}</h2>
-            <p className="text-sm text-muted">{t('workspace.cycleAmount', { amount: formatMinor(group.contributionAmountMinor, group.currency), cycle: selectedCycleNumber })}</p>
+            <p className="text-sm text-muted">{t('workspace.cycleAmount', { amount: formatMinor(group.contributionAmountMinor, group.currency), cycle: formatCycleName(plannedDateForCycle(group, selectedCycleNumber), group.frequency, locale, t) })}</p>
           </div>
           <button type="button" onClick={onClose} aria-label={t('common.close')} className="rounded-full p-1.5 text-muted hover:bg-sunken hover:text-ink">
             <X size={20} weight="bold" />
@@ -121,7 +124,7 @@ export default function PaymentSheet({
                     onChange={selectCycle}
                     options={pendingCycleNumbers.map((pendingCycleNumber) => ({
                       value: String(pendingCycleNumber),
-                      label: t('workspace.cycleNumber', { cycle: pendingCycleNumber }),
+                      label: formatCycleName(plannedDateForCycle(group, pendingCycleNumber), group.frequency, locale, t),
                     }))}
                   />
                 </Field>

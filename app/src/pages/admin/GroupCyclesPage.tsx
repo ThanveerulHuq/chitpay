@@ -7,11 +7,14 @@ import GroupShell, { useGroupWorkspace } from './GroupShell'
 import { Button, Chip, ErrorNote } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { groupPath, useExperience } from '@/lib/roleRoutes'
+import { useLocale } from '@/lib/format'
+import { formatCycleName } from '@/lib/cycleName'
 
 export default function GroupCyclesPage() { return <GroupShell><CyclesContent /></GroupShell> }
 
 function CyclesContent() {
   const { t } = useI18n()
+  const locale = useLocale()
   const experience = useExperience()
   const { groupId, group, members, cycles, reload, isReadOnly } = useGroupWorkspace()
   const [busyCycle, setBusyCycle] = useState<number | null>(null)
@@ -43,7 +46,7 @@ function CyclesContent() {
         return <li key={id} className="rounded-2xl border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">
             <Link to={groupPath(experience, groupId, `cycles/${id}`)} className="min-w-0 flex-1">
-              <div className="flex items-center gap-2"><h2 className="font-bold">{t('workspace.cycleNumber', { cycle: data.cycleNumber })}</h2><StatusChip status={data.status} t={t} /></div>
+              <div className="flex items-center gap-2"><h2 className="font-bold">{formatCycleName(data.plannedStartDate, group.frequency, locale, t)}</h2><StatusChip status={data.status} t={t} /></div>
               <p className="mt-1 text-sm text-muted">{t('workspace.plannedStart', { date: data.plannedStartDate })}</p>
               {data.status !== 'upcoming' && <div className="mt-3 grid grid-cols-2 gap-2 text-sm"><span className="text-muted">{t('workspace.collected')}</span><span className="text-right font-semibold">{formatMinor(data.collectedAmountMinor, group.currency)} / {formatMinor(expectedAmount, group.currency)}</span><span className="text-muted">{t('workspace.winner')}</span><span className="flex items-center justify-end gap-1 font-semibold">{winner ? <><Trophy size={14} />{winner}</> : t('workspace.notSelected')}</span></div>}
             </Link>

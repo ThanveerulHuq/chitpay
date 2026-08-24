@@ -9,11 +9,14 @@ import PaymentSheet from '@/components/PaymentSheet'
 import { Button, Chip, ErrorNote } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { useParams } from 'react-router-dom'
+import { useLocale } from '@/lib/format'
+import { formatCycleName } from '@/lib/cycleName'
 
 export default function GroupCycleDetailPage() { return <GroupShell><CycleDetailContent /></GroupShell> }
 
 function CycleDetailContent() {
   const { t } = useI18n()
+  const locale = useLocale()
   const { cycleNumber: cycleParam } = useParams<{ cycleNumber: string }>()
   const { groupId, group, members, cycles, reload, isReadOnly } = useGroupWorkspace()
   const cycleNumber = Number(cycleParam)
@@ -55,7 +58,7 @@ function CycleDetailContent() {
     const startBlockMessage = startBlockReason === 'no_active_members'
       ? t('workspace.startCycleNeedsMember')
       : null
-    return <><h1 className="text-xl font-bold">{t('workspace.cycleNumber', { cycle: cycle.cycleNumber })}</h1><p className="mt-1 text-sm text-muted">{t('workspace.plannedStart', { date: cycle.plannedStartDate })}</p><div className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center"><Chip tone="neutral">{t('workspace.statusUpcoming')}</Chip><p className="mx-auto mt-3 max-w-[32ch] text-sm text-muted">{t('workspace.plannedDateInfo')}</p>{startBlockMessage && <p className="mx-auto mt-3 max-w-[32ch] text-sm font-medium text-ink">{startBlockMessage}</p>}{!isReadOnly && <Button onClick={() => void start()} disabled={busy !== null || startBlockReason !== null} title={startBlockMessage ?? undefined} className="mt-5"><Play size={16} weight="fill" />{busy === 'start' ? t('dash.starting') : t('workspace.startCycle')}</Button>}</div>{error && <div className="mt-4"><ErrorNote>{error}</ErrorNote></div>}</>
+    return <><h1 className="text-xl font-bold">{formatCycleName(cycle.plannedStartDate, group.frequency, locale, t)}</h1><p className="mt-1 text-sm text-muted">{t('workspace.plannedStart', { date: cycle.plannedStartDate })}</p><div className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center"><Chip tone="neutral">{t('workspace.statusUpcoming')}</Chip><p className="mx-auto mt-3 max-w-[32ch] text-sm text-muted">{t('workspace.plannedDateInfo')}</p>{startBlockMessage && <p className="mx-auto mt-3 max-w-[32ch] text-sm font-medium text-ink">{startBlockMessage}</p>}{!isReadOnly && <Button onClick={() => void start()} disabled={busy !== null || startBlockReason !== null} title={startBlockMessage ?? undefined} className="mt-5"><Play size={16} weight="fill" />{busy === 'start' ? t('dash.starting') : t('workspace.startCycle')}</Button>}</div>{error && <div className="mt-4"><ErrorNote>{error}</ErrorNote></div>}</>
   }
 
   if (!board) return <div className="rounded-2xl bg-sunken p-8 text-center text-sm text-muted">{t('common.loading')}</div>
@@ -89,7 +92,7 @@ function CycleDetailContent() {
 
   const active = cycle.status === 'active'
   return <>
-    <div className="flex items-start justify-between gap-3"><div><h1 className="text-xl font-bold">{t('workspace.cycleNumber', { cycle: cycle.cycleNumber })}</h1><p className="mt-1 text-sm text-muted">{t('workspace.plannedStart', { date: cycle.plannedStartDate })}</p><div className="mt-2"><Chip tone={active ? 'pending' : 'paid'}>{active ? t('workspace.statusActive') : t('workspace.statusComplete')}</Chip></div></div>{active && !isReadOnly && board.some((entry) => entry.status === 'pending') && <Button variant="secondary" className="px-3 py-2 text-sm" onClick={() => void remind()} disabled={busy !== null}><Bell size={16} />{t('workspace.remindAll')}</Button>}</div>
+    <div className="flex items-start justify-between gap-3"><div><h1 className="text-xl font-bold">{formatCycleName(cycle.plannedStartDate, group.frequency, locale, t)}</h1><p className="mt-1 text-sm text-muted">{t('workspace.plannedStart', { date: cycle.plannedStartDate })}</p><div className="mt-2"><Chip tone={active ? 'pending' : 'paid'}>{active ? t('workspace.statusActive') : t('workspace.statusComplete')}</Chip></div></div>{active && !isReadOnly && board.some((entry) => entry.status === 'pending') && <Button variant="secondary" className="px-3 py-2 text-sm" onClick={() => void remind()} disabled={busy !== null}><Bell size={16} />{t('workspace.remindAll')}</Button>}</div>
     <dl className="mt-4 grid grid-cols-3 divide-x divide-line rounded-2xl border border-line bg-surface text-center"><Stat label={t('workspace.collected')} value={formatMinor(collected, group.currency)} /><Stat label={t('workspace.paid')} value={`${paidCount} / ${cycle.expectedPaymentCount}`} /><Stat label={t('workspace.balance')} value={formatMinor(Math.max(expected - collected, 0), group.currency)} /></dl>
     {winner && <div className="mt-4 flex items-center gap-3 rounded-2xl bg-accent-soft p-4"><Trophy size={22} weight="fill" className="text-accent-strong dark:text-accent" /><div><p className="font-semibold">{winner}</p><p className="text-sm text-muted">{cycle.payout.status === 'paid' ? formatMinor(cycle.payout.amountMinor, group.currency) : t('workspace.payoutPending')}</p></div></div>}
     {error && <div className="mt-4"><ErrorNote>{error}</ErrorNote></div>}

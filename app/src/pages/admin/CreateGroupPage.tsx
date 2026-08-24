@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { callCreateGroup } from '@/lib/api'
 import { generateCycleSchedule, isValidIsoDate, toMinor, type CycleFrequency } from '@shared'
 import { Button, DateInput, Dropdown, ErrorNote, Field, Input, Page, PageHeader, Textarea } from '@/components/ui'
-import { useT } from '@/i18n'
+import { useI18n } from '@/i18n'
 import { groupPath, groupsPath, useExperience } from '@/lib/roleRoutes'
+import { useLocale } from '@/lib/format'
+import { formatCycleName } from '@/lib/cycleName'
 
 export default function CreateGroupPage() {
-  const t = useT()
+  const { t } = useI18n()
+  const locale = useLocale()
   const navigate = useNavigate()
   const experience = useExperience()
   const [name, setName] = useState('')
@@ -131,9 +134,9 @@ export default function CreateGroupPage() {
             <div className="rounded-2xl border border-line bg-sunken p-4">
               <h2 className="text-sm font-semibold">{t('createGroup.schedulePreview')}</h2>
               <ol className="mt-3 grid gap-2 sm:grid-cols-2">
-                {schedule.map((date, index) => (
+                {schedule.map((date) => (
                   <li key={date} className="flex items-center justify-between rounded-xl bg-surface px-3 py-2 text-sm">
-                    <span>{t('workspace.cycleNumber', { cycle: index + 1 })}</span>
+                    <span>{formatCycleName(date, frequency, locale, t)}</span>
                     <span className="font-medium tabular-nums text-muted">{date}</span>
                   </li>
                 ))}
