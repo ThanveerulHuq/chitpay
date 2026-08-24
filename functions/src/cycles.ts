@@ -339,15 +339,16 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
 
 interface SendMemberReminderInput {
   groupId: string
-  membershipId: string
+  membershipIds: string[]
 }
 
 export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
   try {
     const uid = req.auth?.uid
     if (!uid) throw new AppError('unauthenticated')
-    const { groupId, membershipId } = req.data as SendMemberReminderInput
-    if (!groupId || !membershipId) throw new AppError('invalid_argument')
+    const { groupId, membershipIds } = req.data as SendMemberReminderInput
+    const ids = Array.isArray(membershipIds) ? [...new Set(membershipIds.map(String))] : []
+    if (!groupId || ids.length < 1 || ids.length > 100) throw new AppError('invalid_argument')
 
     const groupRef = db.doc(`groups/${groupId}`)
     const groupSnap = await groupRef.get()
@@ -356,21 +357,29 @@ export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'publ
     await assertAdminAccess(req.auth, group)
     assertGroupWritable(group)
 
-    const memberSnap = await groupRef.collection('members').doc(membershipId).get()
-    const member = memberSnap.data() as GroupMemberDoc | undefined
-    if (!memberSnap.exists || !member) throw new AppError('not_found')
+    const memberSnaps = await db.getAll(...ids.map((membershipId) => groupRef.collection('members').doc(membershipId)))
+    const members = memberSnaps.map((memberSnap) => memberSnap.data() as GroupMemberDoc | undefined)
+    if (members.some((member) => !member)) throw new AppError('not_found')
+    const member = members[0]!
+    if (members.some((candidate) => candidate!.uid !== member.uid)) {
+      throw new AppError('invalid_argument', 'All chits must belong to the same member.')
+    }
 
     const activeCyclesSnap = await groupRef.collection('cycles').where('status', '==', 'active').get()
     const pending = (await Promise.all(activeCyclesSnap.docs.map(async (cycleDoc) => {
-      const paymentSnap = await cycleDoc.ref.collection('payments').doc(membershipId).get()
-      const payment = paymentSnap.data() as PaymentDoc | undefined
-      if (!paymentSnap.exists || !payment || payment.status !== 'pending') return null
       const cycle = cycleDoc.data() as CycleDoc
-      return { cycleNumber: cycle.cycleNumber, amountMinor: payment.amountMinor }
-    })))
-      .filter((entry): entry is { cycleNumber: number; amountMinor: number } => entry !== null)
+      const paymentSnaps = await db.getAll(...ids.map((membershipId) => cycleDoc.ref.collection('payments').doc(membershipId)))
+      return paymentSnaps.flatMap((paymentSnap) => {
+        const payment = paymentSnap.data() as PaymentDoc | undefined
+        return payment?.status === 'pending'
+          ? [{ cycleNumber: cycle.cycleNumber, amountMinor: payment.amountMinor }]
+          : []
+      })
+    }))).flat()
 
-    const { cycleNumbers, totalDueMinor } = summarizePendingCyclePayments(pending)
+    const summary = summarizePendingCyclePayments(pending)
+    const cycleNumbers = [...new Set(summary.cycleNumbers)]
+    const totalDueMinor = summary.totalDueMinor
     if (pending.length === 0) {
       return { sent: 0, pendingCycleCount: 0, cycleNumbers, totalDueMinor }
     }
@@ -402,7 +411,7 @@ export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'publ
       cycleNumbers,
       template,
       toPhone: user.phone,
-      membershipId,
+      membershipId: ids[0]!,
       providerMessageId,
       status: error ? 'failed' : 'sent',
       error,

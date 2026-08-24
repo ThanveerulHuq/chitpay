@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { callCreateGroup } from '@/lib/api'
-import { generateCycleSchedule, isValidIsoDate, toMinor, type CycleFrequency } from '@shared'
+import { formatIsoDate, generateCycleSchedule, isValidIsoDate, toMinor, type CycleFrequency } from '@shared'
 import { Button, DateInput, Dropdown, ErrorNote, Field, Input, Page, PageHeader, Textarea } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { groupPath, groupsPath, useExperience } from '@/lib/roleRoutes'
@@ -137,7 +137,7 @@ export default function CreateGroupPage() {
                 {schedule.map((date) => (
                   <li key={date} className="flex items-center justify-between rounded-xl bg-surface px-3 py-2 text-sm">
                     <span>{formatCycleName(date, frequency, locale, t)}</span>
-                    <span className="font-medium tabular-nums text-muted">{date}</span>
+                    <span className="font-medium tabular-nums text-muted">{formatIsoDate(date)}</span>
                   </li>
                 ))}
               </ol>

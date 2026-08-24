@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Archive, CalendarBlank, Users } from '@phosphor-icons/react'
+import { Archive, CalendarBlank, Ticket } from '@phosphor-icons/react'
 import type { GroupDoc } from '@shared'
 import { ErrorNote, Page, PageHeader, Skeleton } from '@/components/ui'
 import { fetchMyGroups } from '@/lib/api'
@@ -58,7 +58,7 @@ export default function ArchivedGroupsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-ink">{data.name}</p>
                     <p className="mt-1 flex items-center gap-3 text-xs text-muted">
-                      <span className="inline-flex items-center gap-1"><Users size={13} />{data.memberCount}</span>
+                      <span className="inline-flex items-center gap-1"><Ticket size={13} />{t('workspace.memberChitCount', { count: data.memberCount })}</span>
                       <span className="inline-flex items-center gap-1"><CalendarBlank size={13} />{data.completedCycleCount}/{data.cycleCount}</span>
                     </p>
                   </div>

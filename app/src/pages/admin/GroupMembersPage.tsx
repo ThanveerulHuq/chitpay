@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bell, MagnifyingGlass, Money } from '@phosphor-icons/react'
-import { callSendMemberReminder, fetchBoard, fetchGroupPaymentRecords } from '@/lib/api'
+import { Bell, MagnifyingGlass, Minus, Money, PencilSimple, Plus, X } from '@phosphor-icons/react'
+import { callSendMemberReminder, callUpdateMemberChitCount, fetchBoard, fetchGroupPaymentRecords } from '@/lib/api'
 import { formatMinor } from '@shared'
+import type { GroupMemberDoc } from '@shared'
 import { AddMemberSection } from '@/pages/admin/GroupDashboardPage'
 import GroupShell, { useGroupWorkspace } from './GroupShell'
 import PaymentSheet from '@/components/PaymentSheet'
-import { Chip, ErrorNote, Input } from '@/components/ui'
+import { Button, Chip, ErrorNote, Input } from '@/components/ui'
 import { useI18n } from '@/i18n'
+import { useBodyLock } from '@/lib/useBodyLock'
+
+interface MemberPerson {
+  uid: string
+  name: string
+  slots: { id: string; data: GroupMemberDoc }[]
+}
 
 export default function GroupMembersPage() {
   return (
@@ -22,7 +30,8 @@ function MembersContent() {
   const [search, setSearch] = useState('')
   const [fallbackTotals, setFallbackTotals] = useState<Map<string, { total: number; paidCycles: number }>>(new Map())
   const [pendingByMember, setPendingByMember] = useState<Map<string, number[]>>(new Map())
-  const [paymentMember, setPaymentMember] = useState<{ id: string; cycles: number[] } | null>(null)
+  const [paymentMember, setPaymentMember] = useState<{ ids: string[]; cycles: number[] } | null>(null)
+  const [editMember, setEditMember] = useState<MemberPerson | null>(null)
   const [busyMember, setBusyMember] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingRefresh, setPendingRefresh] = useState(0)
@@ -80,11 +89,11 @@ function MembersContent() {
     }
   }, [activeCycleNumbers, groupId, pendingRefresh, t])
 
-  async function remindMember(membershipId: string) {
-    setBusyMember(membershipId)
+  async function remindMember(person: MemberPerson) {
+    setBusyMember(person.uid)
     setError(null)
     try {
-      const result = await callSendMemberReminder({ groupId, membershipId })
+      const result = await callSendMemberReminder({ groupId, membershipIds: person.slots.map((slot) => slot.id) })
       if (result.pendingCycleCount > 0 && result.sent === 0) {
         throw new Error('Reminder delivery failed')
       }
@@ -96,7 +105,17 @@ function MembersContent() {
     }
   }
 
-  const visible = members.filter(({ data }) => data.displayName.toLowerCase().includes(search.toLowerCase()))
+  const people = useMemo(() => {
+    const grouped = new Map<string, MemberPerson>()
+    for (const slot of members) {
+      if (slot.data.status !== 'active') continue
+      const person = grouped.get(slot.data.uid) ?? { uid: slot.data.uid, name: slot.data.displayName, slots: [] }
+      person.slots.push(slot)
+      grouped.set(slot.data.uid, person)
+    }
+    return [...grouped.values()]
+  }, [members])
+  const visible = people.filter((person) => person.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <>
@@ -108,54 +127,62 @@ function MembersContent() {
 
       {visible.length === 0 ? (
         <div className="mt-5 rounded-2xl border border-dashed border-line p-8 text-center">
-          <p className="text-sm text-muted">{members.length ? t('workspace.noMatchingMembers') : t('dash.rosterEmpty')}</p>
+          <p className="text-sm text-muted">{people.length ? t('workspace.noMatchingMembers') : t('dash.rosterEmpty')}</p>
         </div>
       ) : (
         <ul className="mt-5 divide-y divide-line rounded-2xl border border-line bg-surface px-4">
-          {visible.map(({ id, data }) => {
-            const fallback = fallbackTotals.get(id)
-            const total = typeof data.totalContributedMinor === 'number' ? data.totalContributedMinor : fallback?.total ?? 0
-            const paidCycles = typeof data.paidCycleCount === 'number' ? data.paidCycleCount : fallback?.paidCycles ?? 0
-            const pendingCycles = pendingByMember.get(id) ?? []
-            const totalPending = pendingCycles.length * group.contributionAmountMinor
+          {visible.map((person) => {
+            const ids = person.slots.map((slot) => slot.id)
+            const total = person.slots.reduce((sum, slot) => {
+              const fallback = fallbackTotals.get(slot.id)
+              return sum + (typeof slot.data.totalContributedMinor === 'number' ? slot.data.totalContributedMinor : fallback?.total ?? 0)
+            }, 0)
+            const paidPayments = person.slots.reduce((sum, slot) => {
+              const fallback = fallbackTotals.get(slot.id)
+              return sum + (typeof slot.data.paidCycleCount === 'number' ? slot.data.paidCycleCount : fallback?.paidCycles ?? 0)
+            }, 0)
+            const pendingCycles = [...new Set(person.slots.flatMap((slot) => pendingByMember.get(slot.id) ?? []))].sort((a, b) => a - b)
+            const pendingPaymentCount = person.slots.reduce((sum, slot) => sum + (pendingByMember.get(slot.id)?.length ?? 0), 0)
+            const totalPending = pendingPaymentCount * group.contributionAmountMinor
             return (
-              <li key={id} className="flex items-center gap-3 py-3.5">
+              <li key={person.uid} className="flex items-center gap-3 py-3.5">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-semibold">{data.displayName}</p>
-                    {data.status === 'inactive' && <Chip tone="neutral">{t('common.inactive')}</Chip>}
+                    <p className="truncate text-sm font-semibold">{person.name}</p>
+                    <Chip tone="neutral">{t('workspace.memberChitCount', { count: person.slots.length })}</Chip>
                   </div>
                   <p className="mt-1 text-xs text-muted">
-                    {formatMinor(total, group.currency)} · {t('workspace.paidCycles', { paid: paidCycles, total: group.cycleCount })}
+                    {formatMinor(total, group.currency)} · {t('workspace.paidChitPayments', { paid: paidPayments, total: group.cycleCount * person.slots.length })}
                   </p>
-                  {pendingCycles.length > 0 && (
+                  {pendingPaymentCount > 0 && (
                     <p className="mt-1 text-xs font-medium text-ink">
                       {t('workspace.totalPending', { amount: formatMinor(totalPending, group.currency) })}
                     </p>
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {data.selectedInCycle != null && <Chip tone="paid">{t('workspace.selected')}</Chip>}
-                  {!isReadOnly && pendingCycles.length > 0 && (
+                  {person.slots.some((slot) => slot.data.selectedInCycle != null) && <Chip tone="paid">{t('workspace.selected')}</Chip>}
+                  {!isReadOnly && group.completedCycleCount === 0 && <button type="button" onClick={() => setEditMember(person)} aria-label={t('workspace.editChitCountFor', { name: person.name })} title={t('workspace.editChitCountFor', { name: person.name })} className="rounded-full border border-line p-2 text-muted hover:bg-sunken hover:text-ink"><PencilSimple size={17} weight="bold" /></button>}
+                  {!isReadOnly && pendingPaymentCount > 0 && (
                     <>
                       <button
                         type="button"
-                        onClick={() => setPaymentMember({ id, cycles: pendingCycles })}
-                        aria-label={t('workspace.recordFor', { name: data.displayName })}
-                        title={t('workspace.recordFor', { name: data.displayName })}
+                        onClick={() => setPaymentMember({ ids, cycles: pendingCycles })}
+                        aria-label={t('workspace.recordFor', { name: person.name })}
+                        title={t('workspace.recordFor', { name: person.name })}
                         className="rounded-full border border-line p-2 text-accent-strong hover:bg-accent-soft disabled:opacity-40 dark:text-accent"
                       >
                         <Money size={17} weight="bold" />
                       </button>
                       <button
                         type="button"
-                        onClick={() => void remindMember(id)}
+                        onClick={() => void remindMember(person)}
                         disabled={busyMember !== null}
-                        aria-label={t('workspace.remindFor', { name: data.displayName })}
-                        title={t('workspace.remindFor', { name: data.displayName })}
+                        aria-label={t('workspace.remindFor', { name: person.name })}
+                        title={t('workspace.remindFor', { name: person.name })}
                         className="rounded-full border border-line p-2 text-accent-strong hover:bg-accent-soft disabled:opacity-40 dark:text-accent"
                       >
-                        <Bell size={17} weight={busyMember === id ? 'fill' : 'bold'} />
+                        <Bell size={17} weight={busyMember === person.uid ? 'fill' : 'bold'} />
                       </button>
                     </>
                   )}
@@ -177,7 +204,7 @@ function MembersContent() {
           groupId={groupId}
           group={group}
           pendingCycleNumbers={paymentMember.cycles}
-          fixedMembershipId={paymentMember.id}
+          membershipIds={paymentMember.ids}
           onClose={() => setPaymentMember(null)}
           onDone={() => {
             setPaymentMember(null)
@@ -185,6 +212,30 @@ function MembersContent() {
           }}
         />
       )}
+      {!isReadOnly && editMember && <EditChitCountSheet groupId={groupId} person={editMember} onClose={() => setEditMember(null)} onDone={() => { setEditMember(null); void reload().finally(() => setPendingRefresh((value) => value + 1)) }} />}
     </>
   )
+}
+
+function EditChitCountSheet({ groupId, person, onClose, onDone }: { groupId: string; person: MemberPerson; onClose: () => void; onDone: () => void }) {
+  const { t } = useI18n()
+  const [count, setCount] = useState(person.slots.length)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useBodyLock(true)
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    try {
+      await callUpdateMemberChitCount({ groupId, membershipId: person.slots[0]!.id, chitCount: count })
+      onDone()
+    } catch (nextError) {
+      const details = (nextError as { details?: { code?: string } }).details
+      setError(details?.code === 'invalid_transition' ? t('workspace.chitCountActivityError') : (nextError as Error).message)
+      setBusy(false)
+    }
+  }
+
+  return <div role="dialog" aria-modal="true" aria-labelledby="edit-chit-count-title" className="fixed inset-0 z-[60] flex items-end bg-black/40 sm:items-center sm:justify-center sm:p-4" onClick={(event) => event.target === event.currentTarget && onClose()}><div className="w-full max-w-lg rounded-t-3xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl sm:pb-5"><div className="flex items-start justify-between gap-3"><div><h2 id="edit-chit-count-title" className="text-lg font-bold">{t('workspace.editChitCount')}</h2><p className="text-sm text-muted">{person.name}</p></div><button type="button" onClick={onClose} aria-label={t('common.close')} className="rounded-full p-1.5 text-muted hover:bg-sunken hover:text-ink"><X size={20} weight="bold" /></button></div>{error && <div className="mt-4"><ErrorNote>{error}</ErrorNote></div>}<div className="mt-5"><p className="text-sm font-medium text-ink">{t('dash.chitCount')}</p><div className="mt-2 grid w-36 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-xl border border-line bg-surface"><button type="button" onClick={() => setCount((value) => Math.max(1, value - 1))} disabled={count === 1 || busy} aria-label={t('dash.decreaseChitCount')} className="grid h-10 place-items-center border-r border-line text-ink hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Minus size={16} weight="bold" /></button><output aria-live="polite" className="grid h-10 place-items-center font-bold tabular-nums">{count}</output><button type="button" onClick={() => setCount((value) => Math.min(100, value + 1))} disabled={count === 100 || busy} aria-label={t('dash.increaseChitCount')} className="grid h-10 place-items-center border-l border-line text-ink hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Plus size={16} weight="bold" /></button></div><p className="mt-2 text-xs text-muted">{t('workspace.editChitCountHint')}</p></div><div className="mt-6 flex gap-3"><Button variant="secondary" onClick={onClose} disabled={busy} className="flex-1">{t('common.cancel')}</Button><Button onClick={() => void save()} disabled={busy || count === person.slots.length} className="flex-1">{busy ? t('common.saving') : t('common.save')}</Button></div></div></div>
 }

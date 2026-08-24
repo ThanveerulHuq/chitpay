@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatDate, formatMonthHeader, isoDateLocal } from './datetime'
+import { formatDate, formatIsoDate, formatMonthHeader, isoDateLocal } from './datetime'
 
 describe('isoDateLocal', () => {
   it('formats a local timestamp as YYYY-MM-DD', () => {
@@ -14,18 +14,24 @@ describe('isoDateLocal', () => {
 })
 
 describe('formatDate', () => {
-  it('renders day, short month and year in en-IN', () => {
-    const ms = new Date(Date.UTC(2026, 0, 10)).getTime()
-    const out = formatDate(ms, 'en-IN')
-    expect(out).toContain('2026')
-    expect(out).toMatch(/Jan/)
+  it('renders a timestamp as DD-MM-YYYY', () => {
+    const ms = new Date(2026, 0, 10).getTime()
+    expect(formatDate(ms, 'en-IN')).toBe('10-01-2026')
   })
 
-  it('renders Tamil month names for ta-IN', () => {
-    const ms = new Date(Date.UTC(2026, 0, 10)).getTime()
-    const out = formatDate(ms, 'ta-IN')
-    expect(out).toContain('2026')
-    expect(out).not.toMatch(/Jan/)
+  it('uses the same numeric format for every locale', () => {
+    const ms = new Date(2026, 10, 9).getTime()
+    expect(formatDate(ms, 'ta-IN')).toBe('09-11-2026')
+  })
+})
+
+describe('formatIsoDate', () => {
+  it('converts an ISO date to DD-MM-YYYY', () => {
+    expect(formatIsoDate('2026-08-24')).toBe('24-08-2026')
+  })
+
+  it('leaves non-ISO values unchanged', () => {
+    expect(formatIsoDate('')).toBe('')
   })
 })
 

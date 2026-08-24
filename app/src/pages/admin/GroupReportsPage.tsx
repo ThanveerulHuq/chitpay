@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { PencilSimple, Receipt, X } from '@phosphor-icons/react'
-import { callEditPayment, callReversePayment, fetchGroupPaymentLedger, fetchMyMemberships, type PaymentLedgerRecord } from '@/lib/api'
+import { CalendarBlank, HandCoins, PencilSimple, Receipt, X } from '@phosphor-icons/react'
+import { callEditPayment, callReversePayment, fetchGroupPaymentLedger, fetchMyMemberships, filterPaymentsByRange, type PaymentLedgerRecord } from '@/lib/api'
 import { formatDate, formatMinor } from '@shared'
 import type { GroupDoc, PaymentMethod } from '@shared'
 import DateRangeFields from '@/components/DateRangeFields'
@@ -16,16 +16,40 @@ export default function GroupReportsPage() {
   return <GroupShell><ReportsContent /></GroupShell>
 }
 
+type ReportFilters = {
+  from: string
+  to: string
+  cycle: string
+  method: 'all' | PaymentMethod
+}
+
+type ReportEntry = {
+  kind: 'payment' | 'payout'
+  cycleNumber: number
+  membershipId: string
+  amountMinor: number
+  paidAtMs: number | null
+  payment?: PaymentLedgerRecord
+}
+
+const emptyFilters: ReportFilters = { from: '', to: '', cycle: 'all', method: 'all' }
+
+function timestampToMillis(value: unknown): number | null {
+  if (typeof value === 'number') return value
+  if (value && typeof value === 'object' && 'toMillis' in value) {
+    return (value as { toMillis(): number }).toMillis()
+  }
+  return null
+}
+
 function ReportsContent() {
   const { t } = useI18n()
   const locale = useLocale()
-  const { groupId, group, members, isReadOnly, isMemberView } = useGroupWorkspace()
+  const { groupId, group, members, cycles, isReadOnly, isMemberView } = useGroupWorkspace()
   const [rows, setRows] = useState<PaymentLedgerRecord[]>([])
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const [status, setStatus] = useState<'all' | 'paid' | 'reversed'>('all')
-  const [cycle, setCycle] = useState('all')
-  const [method, setMethod] = useState<'all' | PaymentMethod>('all')
+  const [memberIds, setMemberIds] = useState<Set<string> | null>(isMemberView ? new Set() : null)
+  const [filters, setFilters] = useState<ReportFilters>(emptyFilters)
+  const [dateFilterOpen, setDateFilterOpen] = useState(false)
   const [selected, setSelected] = useState<PaymentLedgerRecord | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -33,6 +57,7 @@ function ReportsContent() {
     setLoading(true)
     const ids = isMemberView ? (await fetchMyMemberships()).filter((entry) => entry.data.groupId === groupId).map((entry) => entry.data.membershipId) : undefined
     const records = await fetchGroupPaymentLedger(groupId, ids)
+    setMemberIds(ids ? new Set(ids) : null)
     setRows(records)
     setLoading(false)
   }, [groupId, isMemberView])
@@ -40,31 +65,80 @@ function ReportsContent() {
   useEffect(() => { void reload() }, [reload])
 
   const nameById = useMemo(() => new Map(members.map(({ id, data }) => [id, data.displayName])), [members])
-  const visible = rows.filter((row) => {
-    const day = row.paidAtMs ? new Date(row.paidAtMs).toISOString().slice(0, 10) : ''
-    if (from && day < from) return false
-    if (to && day > to) return false
-    if (status !== 'all' && row.status !== status) return false
-    if (cycle !== 'all' && row.cycleNumber !== Number(cycle)) return false
-    if (method !== 'all' && row.method !== method) return false
+  const entries = useMemo<ReportEntry[]>(() => {
+    const paymentEntries = rows.map<ReportEntry>((payment) => ({
+      kind: 'payment',
+      cycleNumber: payment.cycleNumber,
+      membershipId: payment.membershipId,
+      amountMinor: payment.amountMinor,
+      paidAtMs: payment.paidAtMs,
+      payment,
+    }))
+    const payoutEntries = cycles.flatMap<ReportEntry>(({ id, data }) => {
+      if (data.payout.status !== 'paid' || !data.recipientMembershipId) return []
+      if (memberIds && !memberIds.has(data.recipientMembershipId)) return []
+      return [{
+        kind: 'payout',
+        cycleNumber: Number(id),
+        membershipId: data.recipientMembershipId,
+        amountMinor: data.payout.amountMinor,
+        paidAtMs: timestampToMillis(data.payout.paidAt),
+      }]
+    })
+    return [...paymentEntries, ...payoutEntries]
+      .sort((a, b) => (b.paidAtMs ?? 0) - (a.paidAtMs ?? 0))
+  }, [cycles, memberIds, rows])
+  const visible = useMemo(() => filterPaymentsByRange(entries, filters.from, filters.to).filter((entry) => {
+    if (filters.cycle !== 'all' && String(entry.cycleNumber) !== filters.cycle) return false
+    if (filters.method !== 'all' && (entry.kind === 'payout' || entry.payment?.method !== filters.method)) return false
     return true
-  })
-  const total = visible.filter((row) => row.status === 'paid').reduce((sum, row) => sum + row.amountMinor, 0)
+  }), [entries, filters])
+  const total = visible.filter((entry) => entry.kind === 'payment' && entry.payment?.status === 'paid').reduce((sum, entry) => sum + entry.amountMinor, 0)
+  const payoutTotal = visible.filter((entry) => entry.kind === 'payout').reduce((sum, entry) => sum + entry.amountMinor, 0)
+  const hasDateFilter = Boolean(filters.from || filters.to)
+  const cycleOptions = useMemo(() => [
+    { value: 'all', label: t('workspace.allCycles') },
+    ...Array.from(new Set(entries.map((entry) => entry.cycleNumber)))
+      .sort((a, b) => a - b)
+      .map((number) => ({ value: String(number), label: formatCycleName(plannedDateForCycle(group, number), group.frequency, locale, t) })),
+  ], [entries, group, locale, t])
 
   return (
     <>
-      <div className="flex items-center gap-2"><Receipt size={22} className="text-accent-strong dark:text-accent" /><div><h1 className="text-lg font-bold">{t('workspace.reports')}</h1><p className="text-sm text-muted">{t('workspace.reportsHint')}</p></div></div>
-      <DateRangeFields from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <Dropdown value={status} onChange={setStatus} ariaLabel={t('workspace.statusFilter')} compact containerClassName="mt-0" options={[{ value: 'all', label: t('workspace.filterAll') }, { value: 'paid', label: t('status.paid') }, { value: 'reversed', label: t('workspace.reversed') }]} />
-        <Dropdown value={cycle} onChange={setCycle} ariaLabel={t('workspace.cycleFilter')} compact containerClassName="mt-0" options={[{ value: 'all', label: t('workspace.allCycles') }, ...Array.from(new Set(rows.map((row) => row.cycleNumber))).sort((a, b) => a - b).map((number) => ({ value: String(number), label: formatCycleName(plannedDateForCycle(group, number), group.frequency, locale, t) }))]} />
-        <Dropdown value={method} onChange={setMethod} ariaLabel={t('workspace.methodFilter')} compact containerClassName="mt-0" options={[{ value: 'all', label: t('workspace.allMethods') }, { value: 'cash', label: t('dash.methodCash') }, { value: 'upi', label: t('dash.methodUpi') }, { value: 'bank_transfer', label: t('dash.methodBank') }, { value: 'other', label: t('dash.methodOther') }]} />
+      <div className="flex items-center gap-2"><Receipt size={22} className="text-accent-strong dark:text-accent" /><h1 className="text-lg font-bold">{t('workspace.reports')}</h1></div>
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+        <span>{t('payments.total')}: <strong className="font-semibold tabular-nums text-ink">{formatMinor(total, group.currency)}</strong></span>
+        <span>{t('payments.payouts')}: <strong className="font-semibold tabular-nums text-ink">{formatMinor(payoutTotal, group.currency)}</strong></span>
       </div>
-      <p className="mt-4 text-sm text-muted">{t('payments.total')}: <span className="font-semibold tabular-nums text-ink">{formatMinor(total, group.currency)}</span></p>
-      {loading ? <div className="mt-5 rounded-2xl bg-sunken p-8 text-center text-sm text-muted">{t('common.loading')}</div> : visible.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t('payments.empty')}</div> : <ul className="mt-5 divide-y divide-line rounded-2xl border border-line bg-surface px-4">{visible.map((row, index) => <li key={`${row.cycleNumber}-${row.membershipId}-${row.eventId ?? index}`} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{nameById.get(row.membershipId) ?? t('memberView.aMember')}</p><p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">{row.method && <PaymentMethodIcon method={row.method} size={12} weight="bold" />}{row.method ? methodLabel(row.method, t) : t('workspace.reversed')}<span aria-hidden>·</span>{formatCycleName(plannedDateForCycle(group, row.cycleNumber), group.frequency, locale, t)}{row.paidAtMs && <><span aria-hidden>·</span>{formatDate(row.paidAtMs, locale)}</>}</p>{row.reason && <p className="mt-0.5 truncate text-xs text-faint">{row.reason}</p>}</div><div className="flex shrink-0 items-center gap-2"><Chip tone={row.status === 'paid' ? 'paid' : 'neutral'}>{row.status === 'paid' ? t('status.paid') : t('workspace.reversed')}</Chip><span className="text-sm font-semibold tabular-nums">{formatMinor(row.amountMinor, group.currency)}</span>{!isReadOnly && row.status === 'paid' && <button type="button" onClick={() => setSelected(row)} className="rounded-full p-2 text-muted hover:bg-sunken hover:text-ink" aria-label={t('workspace.editPayment')}><PencilSimple size={16} weight="bold" /></button>}</div></li>)}</ul>}
+      <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+        <Dropdown value={filters.cycle} onChange={(cycle) => setFilters((current) => ({ ...current, cycle }))} ariaLabel={t('workspace.cycleFilter')} compact containerClassName="!mt-0" className="!mt-0 h-12" options={cycleOptions} />
+        <Dropdown value={filters.method} onChange={(method) => setFilters((current) => ({ ...current, method }))} ariaLabel={t('workspace.methodFilter')} compact containerClassName="!mt-0" className="!mt-0 h-12" options={[{ value: 'all', label: t('workspace.allMethods') }, { value: 'cash', label: t('dash.methodCash') }, { value: 'upi', label: t('dash.methodUpi') }, { value: 'bank_transfer', label: t('dash.methodBank') }, { value: 'other', label: t('dash.methodOther') }]} />
+        <Button variant="secondary" onClick={() => setDateFilterOpen(true)} className="h-12 self-start px-3 py-0 text-sm" aria-label={t('workspace.dateFilter')}>
+          <CalendarBlank size={17} weight="bold" />
+          <span className="hidden sm:inline">{t('workspace.dateFilter')}</span>
+          {hasDateFilter && <span aria-hidden className="size-2 rounded-full bg-accent" />}
+        </Button>
+      </div>
+      {loading ? <div className="mt-5 rounded-2xl bg-sunken p-8 text-center text-sm text-muted">{t('common.loading')}</div> : visible.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t('payments.empty')}</div> : <ul className="mt-5 divide-y divide-line rounded-2xl border border-line bg-surface px-4">{visible.map((entry, index) => {
+        const name = nameById.get(entry.membershipId) ?? t('memberView.aMember')
+        if (entry.kind === 'payout') return <li key={`payout-${entry.cycleNumber}`} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{name}</p><p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted"><HandCoins size={13} weight="bold" />{t('payments.payout')}<span aria-hidden>·</span>{formatCycleName(plannedDateForCycle(group, entry.cycleNumber), group.frequency, locale, t)}{entry.paidAtMs && <><span aria-hidden>·</span>{formatDate(entry.paidAtMs, locale)}</>}</p></div><div className="flex shrink-0 items-center gap-2"><Chip tone="neutral">{t('payments.payout')}</Chip><span className="text-sm font-semibold tabular-nums">{formatMinor(entry.amountMinor, group.currency)}</span></div></li>
+        const row = entry.payment
+        if (!row) return null
+        return <li key={`${row.cycleNumber}-${row.membershipId}-${row.eventId ?? index}`} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{name}</p><p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">{row.method && <PaymentMethodIcon method={row.method} size={12} weight="bold" />}{row.method ? methodLabel(row.method, t) : t('workspace.reversed')}<span aria-hidden>·</span>{formatCycleName(plannedDateForCycle(group, row.cycleNumber), group.frequency, locale, t)}{row.paidAtMs && <><span aria-hidden>·</span>{formatDate(row.paidAtMs, locale)}</>}</p>{row.reason && <p className="mt-0.5 truncate text-xs text-faint">{row.reason}</p>}</div><div className="flex shrink-0 items-center gap-2"><Chip tone={row.status === 'paid' ? 'paid' : 'neutral'}>{row.status === 'paid' ? t('status.paid') : t('workspace.reversed')}</Chip><span className="text-sm font-semibold tabular-nums">{formatMinor(row.amountMinor, group.currency)}</span>{!isReadOnly && row.status === 'paid' && <button type="button" onClick={() => setSelected(row)} className="rounded-full p-2 text-muted hover:bg-sunken hover:text-ink" aria-label={t('workspace.editPayment')}><PencilSimple size={16} weight="bold" /></button>}</div></li>
+      })}</ul>}
+      {dateFilterOpen && <DateFilterSheet from={filters.from} to={filters.to} onClose={() => setDateFilterOpen(false)} onApply={(from, to) => { setFilters((current) => ({ ...current, from, to })); setDateFilterOpen(false) }} />}
       {selected && <PaymentCorrectionSheet groupId={groupId} group={group} row={selected} name={nameById.get(selected.membershipId) ?? t('memberView.aMember')} onClose={() => setSelected(null)} onDone={() => { setSelected(null); void reload() }} />}
     </>
   )
+}
+
+function DateFilterSheet({ from, to, onClose, onApply }: { from: string; to: string; onClose: () => void; onApply: (from: string, to: string) => void }) {
+  const { t } = useI18n()
+  const [draftFrom, setDraftFrom] = useState(from)
+  const [draftTo, setDraftTo] = useState(to)
+  useBodyLock(true)
+
+  return <div role="dialog" aria-modal="true" aria-labelledby="date-filter-title" className="fixed inset-0 z-[60] flex items-end bg-black/40 sm:items-center sm:justify-center sm:p-4" onClick={(event) => event.target === event.currentTarget && onClose()}><div className="w-full max-w-lg rounded-t-3xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-2xl sm:pb-5"><div className="flex items-center justify-between"><h2 id="date-filter-title" className="text-lg font-bold">{t('workspace.dateFilter')}</h2><button type="button" onClick={onClose} aria-label={t('common.close')} className="rounded-full p-1.5 text-muted hover:bg-sunken"><X size={20} weight="bold" /></button></div><div className="mt-4"><DateRangeFields from={draftFrom} to={draftTo} onFromChange={setDraftFrom} onToChange={setDraftTo} /></div><div className="mt-6 flex gap-3"><Button variant="secondary" onClick={() => { setDraftFrom(''); setDraftTo('') }} className="flex-1">{t('workspace.clearFilters')}</Button><Button onClick={() => onApply(draftFrom, draftTo)} className="flex-1">{t('workspace.applyFilters')}</Button></div></div></div>
 }
 
 function PaymentCorrectionSheet({ groupId, group, row, name, onClose, onDone }: { groupId: string; group: GroupDoc; row: PaymentLedgerRecord; name: string; onClose: () => void; onDone: () => void }) {

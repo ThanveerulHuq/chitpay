@@ -43,19 +43,80 @@ export async function callUnarchiveGroup(groupId: string): Promise<void> {
 export interface AddMemberResult {
   membershipId: string
   slotNo: number
-  password: string
+  membershipIds: string[]
+  chitCount: number
   isNewUser: boolean
+  notificationSent: boolean
 }
 
 export async function callAddMember(input: {
   groupId: string
   name: string
   phone: string
-  allowDuplicateSlot?: boolean
+  chitCount?: number
 }): Promise<AddMemberResult> {
   const call = httpsCallable<typeof input, AddMemberResult>(functions, 'addMember')
   const res = await call(input)
   return res.data
+}
+
+export async function callUpdateMemberChitCount(input: {
+  groupId: string
+  membershipId: string
+  chitCount: number
+}): Promise<{ chitCount: number }> {
+  const call = httpsCallable<typeof input, { chitCount: number }>(functions, 'updateMemberChitCount')
+  const res = await call(input)
+  return res.data
+}
+
+export interface ManagedMemberGroup {
+  groupId: string
+  name: string
+  slotCount: number
+  inactiveSlotCount: number
+}
+
+export interface ManagedMember {
+  uid: string
+  name: string
+  phone: string
+  isAdmin: boolean
+  groupCount: number
+  slotCount: number
+  inactiveSlotCount: number
+  groups: ManagedMemberGroup[]
+}
+
+export async function callListManagedMembers(): Promise<ManagedMember[]> {
+  const call = httpsCallable<Record<string, never>, { members: ManagedMember[] }>(
+    functions,
+    'listManagedMembers',
+  )
+  const res = await call({})
+  return res.data.members
+}
+
+export async function callUpdateManagedMemberProfile(input: {
+  uid: string
+  name: string
+  phone: string
+}): Promise<{ phoneChanged: boolean; notificationSent: boolean }> {
+  const call = httpsCallable<typeof input, {
+    ok: boolean
+    phoneChanged: boolean
+    notificationSent: boolean
+  }>(functions, 'updateManagedMemberProfile')
+  const res = await call(input)
+  return {
+    phoneChanged: res.data.phoneChanged,
+    notificationSent: res.data.notificationSent,
+  }
+}
+
+export async function callUpdateOwnName(name: string): Promise<void> {
+  const call = httpsCallable<{ name: string }, { ok: boolean }>(functions, 'updateOwnName')
+  await call({ name })
 }
 
 export async function fetchMyGroups(): Promise<{ id: string; data: GroupDoc }[]> {
@@ -122,7 +183,7 @@ export async function callSendReminder(input: {
 
 export async function callSendMemberReminder(input: {
   groupId: string
-  membershipId: string
+  membershipIds: string[]
 }): Promise<{
   sent: number
   pendingCycleCount: number

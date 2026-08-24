@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, NavLink, useLocation, useParams } from 'react-router-dom'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react'
+import { Link, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArrowCounterClockwise, ArrowLeft, FileText } from '@phosphor-icons/react'
 import { callArchiveGroup, callUnarchiveGroup, fetchCycles, fetchGroup, fetchGroupMembers } from '@/lib/api'
 import { formatMinor } from '@shared'
@@ -23,6 +23,10 @@ export interface WorkspaceValue {
 
 const WorkspaceContext = createContext<WorkspaceValue | null>(null)
 
+const MOBILE_BREAKPOINT = 768
+const SWIPE_DISTANCE = 64
+const SWIPE_DIRECTION_RATIO = 1.25
+
 export function useGroupWorkspace() {
   const context = useContext(WorkspaceContext)
   if (!context) throw new Error('useGroupWorkspace must be used inside GroupShell')
@@ -32,6 +36,7 @@ export function useGroupWorkspace() {
 export default function GroupShell({ children }: { children: ReactNode }) {
   const { groupId = '' } = useParams<{ groupId: string }>()
   const location = useLocation()
+  const navigate = useNavigate()
   const { isAdmin } = useAuth()
   const experience = useExperience()
   const { t } = useI18n()
@@ -42,6 +47,7 @@ export default function GroupShell({ children }: { children: ReactNode }) {
   const [archiveBusy, setArchiveBusy] = useState(false)
   const [archiveError, setArchiveError] = useState<string | null>(null)
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
+  const swipeStart = useRef<{ x: number; y: number } | null>(null)
 
   const reload = useCallback(async () => {
     const [nextGroup, nextMembers, nextCycles] = await Promise.all([
@@ -75,11 +81,17 @@ export default function GroupShell({ children }: { children: ReactNode }) {
   const isArchived = group?.data.status === 'archived'
   const isReadOnly = isMemberView || isArchived
   const isCycleDetail = /\/cycles\/[^/]+$/.test(location.pathname)
+  const isReportsPage = location.pathname.endsWith('/reports')
+  const isMembersPage = location.pathname.endsWith('/members')
+  const isCyclesPage = location.pathname.endsWith('/cycles')
+  const canSwipeBetweenTabs = isMembersPage || isCyclesPage
   const backTo = isCycleDetail
     ? groupPath(experience, groupId, 'cycles')
-    : isArchived && !isMemberView
-      ? settingsPath(experience)
-      : groupsPath(experience)
+    : isReportsPage
+      ? groupPath(experience, groupId)
+      : isArchived && !isMemberView
+        ? settingsPath(experience)
+        : groupsPath(experience)
   const value = useMemo<WorkspaceValue | null>(
     () => group ? ({ groupId, group: group.data, members, cycles, reload, isReadOnly, isMemberView, isAdmin }) : null,
     [groupId, group, members, cycles, reload, isReadOnly, isMemberView, isAdmin],
@@ -112,6 +124,34 @@ export default function GroupShell({ children }: { children: ReactNode }) {
     }
   }
 
+  function handleTouchStart(event: TouchEvent<HTMLElement>) {
+    swipeStart.current = null
+    if (!canSwipeBetweenTabs || window.innerWidth >= MOBILE_BREAKPOINT || event.touches.length !== 1) return
+    const target = event.target as HTMLElement
+    if (target.closest('button, input, select, textarea, [contenteditable="true"], [role="dialog"], [data-swipe-ignore]')) return
+    const touch = event.touches[0]
+    swipeStart.current = { x: touch.clientX, y: touch.clientY }
+  }
+
+  function handleTouchEnd(event: TouchEvent<HTMLElement>) {
+    const start = swipeStart.current
+    swipeStart.current = null
+    if (!start || event.changedTouches.length !== 1) return
+
+    const touch = event.changedTouches[0]
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+    if (Math.abs(deltaX) < SWIPE_DISTANCE || Math.abs(deltaX) < Math.abs(deltaY) * SWIPE_DIRECTION_RATIO) return
+
+    if (deltaX < 0 && isMembersPage) {
+      event.preventDefault()
+      void navigate(groupPath(experience, groupId, 'cycles'))
+    } else if (deltaX > 0 && isCyclesPage) {
+      event.preventDefault()
+      void navigate(groupPath(experience, groupId))
+    }
+  }
+
   if (loading || !group || !value) {
     return (
       <Page>
@@ -121,6 +161,7 @@ export default function GroupShell({ children }: { children: ReactNode }) {
       </Page>
     )
   }
+  const personCount = new Set(members.filter(({ data }) => data.status === 'active').map(({ data }) => data.uid)).size
 
   return (
     <WorkspaceContext.Provider value={value}>
@@ -137,15 +178,17 @@ export default function GroupShell({ children }: { children: ReactNode }) {
               </Link>
               <h1 className="truncate text-xl font-bold tracking-tight">{group.data.name}</h1>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Link
-                to={groupPath(experience, groupId, 'reports')}
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-accent-strong hover:bg-accent-soft dark:text-accent"
-              >
-                <FileText size={17} weight="bold" />
-                {t('workspace.reports')}
-              </Link>
-            </div>
+            {!isReportsPage && (
+              <div className="flex shrink-0 items-center gap-1">
+                <Link
+                  to={groupPath(experience, groupId, 'reports')}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-accent-strong hover:bg-accent-soft dark:text-accent"
+                >
+                  <FileText size={17} weight="bold" />
+                  {t('workspace.reports')}
+                </Link>
+              </div>
+            )}
           </div>
           <p className="pb-2 text-sm text-muted">
             {t('workspace.contribution')}{' '}
@@ -153,18 +196,20 @@ export default function GroupShell({ children }: { children: ReactNode }) {
               {formatMinor(group.data.contributionAmountMinor, group.data.currency)}
             </strong>
           </p>
-          <nav aria-label={t('workspace.tabs')} className="grid grid-cols-2 gap-1 pt-2">
-            <WorkspaceTab to={groupPath(experience, groupId)} active={location.pathname.endsWith('/members')}>
-              {t('workspace.membersTab')}{' '}
-              <span className="text-xs tabular-nums text-faint">{group.data.memberCount}</span>
-            </WorkspaceTab>
-            <WorkspaceTab to={groupPath(experience, groupId, 'cycles')} active={location.pathname.includes('/cycles')}>
-              {t('workspace.cyclesTab')}{' '}
-              <span className="text-xs tabular-nums text-faint">
-                {group.data.completedCycleCount} / {group.data.cycleCount}
-              </span>
-            </WorkspaceTab>
-          </nav>
+          {!isReportsPage && (
+            <nav aria-label={t('workspace.tabs')} className="grid grid-cols-2 gap-1 pt-2">
+              <WorkspaceTab to={groupPath(experience, groupId)} active={location.pathname.endsWith('/members')}>
+                {t('workspace.membersTab')}{' '}
+                <span className="text-xs tabular-nums text-faint">{personCount}</span>
+              </WorkspaceTab>
+              <WorkspaceTab to={groupPath(experience, groupId, 'cycles')} active={location.pathname.includes('/cycles')}>
+                {t('workspace.cyclesTab')}{' '}
+                <span className="text-xs tabular-nums text-faint">
+                  {group.data.completedCycleCount} / {group.data.cycleCount}
+                </span>
+              </WorkspaceTab>
+            </nav>
+          )}
         </header>
         {isAdmin && !isMemberView && isArchived && (
           <div className="mt-4 flex items-center gap-3 rounded-2xl border border-line bg-sunken p-3.5">
@@ -180,7 +225,14 @@ export default function GroupShell({ children }: { children: ReactNode }) {
             </button>
           </div>
         )}
-        <div className="pt-4">{children}</div>
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={() => { swipeStart.current = null }}
+          className={`pt-4 ${canSwipeBetweenTabs ? 'touch-pan-y' : ''}`}
+        >
+          {children}
+        </div>
         {isAdmin && !isMemberView && !isArchived && (
           <section className="mt-12 text-center">
             {archiveError && <p role="alert" className="mb-3 text-sm text-danger">{archiveError}</p>}

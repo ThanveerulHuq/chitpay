@@ -4,14 +4,13 @@ import { FieldValue } from 'firebase-admin/firestore'
 import {
   AppError,
   assertGroupWritable,
-  generateMemberPassword,
   generateCycleSchedule,
   normalizePhone,
   resolveUnarchiveStatus,
 } from '@chitapp/shared'
-import type { BoardDoc, BoardEntry, CycleDoc, CycleFrequency, GroupDoc, PaymentDoc } from '@chitapp/shared'
+import type { BoardDoc, BoardEntry, CycleDoc, CycleFrequency, GroupDoc, GroupMemberDoc, MessageLogDoc, PaymentDoc, UserDoc } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
-import { syntheticEmail, assertAdminAccess } from './auth.js'
+import { syntheticEmail, assertAdminAccess, sendLoginAccessLink } from './auth.js'
 
 
 interface CreateGroupInput {
@@ -48,6 +47,7 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
     const frequency = input.frequency as CycleFrequency
     const cycleCount = Math.floor(Number(input.cycleCount))
     const startDate = String(input.startDate ?? '')
+    const description = input.description?.trim()
 
     if (!name) throw new AppError('invalid_argument', 'Group name is required.')
     if (!(contributionAmountMinor > 0)) throw new AppError('invalid_argument', 'Invalid contribution.')
@@ -73,7 +73,7 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
       frequency,
       cycleCount,
       startDate,
-      description: input.description?.trim() || undefined,
+      ...(description ? { description } : {}),
       requirePaidToWin: Boolean(input.requirePaidToWin),
       status: 'active',
       memberCount: 0,
@@ -173,7 +173,7 @@ interface AddMemberInput {
   groupId: string
   name: string
   phone: string
-  allowDuplicateSlot?: boolean
+  chitCount?: number
 }
 
 export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
@@ -189,13 +189,17 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
     }
     const name = String(input.name ?? '').trim()
     const phone = normalizePhone(String(input.phone ?? ''))
+    const chitCount = Number(input.chitCount ?? 1)
     if (!name) throw new AppError('invalid_argument', 'Member name is required.')
+    if (!Number.isInteger(chitCount) || chitCount < 1 || chitCount > 100) {
+      throw new AppError('invalid_argument', 'Number of chits must be between 1 and 100.')
+    }
 
     // Duplicate-slot guard: same person already has an active slot in this group.
     const existingUser = await auth
       .getUserByEmail(syntheticEmail(phone))
       .catch(() => null)
-    if (existingUser && !input.allowDuplicateSlot) {
+    if (existingUser) {
       const dup = await db
         .collection(`groups/${input.groupId}/members`)
         .where('uid', '==', existingUser.uid)
@@ -205,12 +209,11 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       if (!dup.empty) {
         throw new AppError(
           'already_exists',
-          'This number is already a member of this group. Add again with confirmation to create a second slot.',
+          'This number is already a member of this group. Edit their existing chit count instead.',
         )
       }
     }
 
-    const password = generateMemberPassword()
     let uid: string
     let isNewUser: boolean
     if (existingUser) {
@@ -221,7 +224,6 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
         email: syntheticEmail(phone),
         emailVerified: true,
         displayName: name,
-        password,
       })
       uid = user.uid
       isNewUser = true
@@ -240,9 +242,15 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       const currentGroup = snap.data() as GroupDoc
       assertGroupWritable(currentGroup)
       const memberCount = currentGroup.memberCount ?? 0
-      const slotNo = memberCount + 1
-      const memberRef = groupRef.collection('members').doc()
-      const membershipId = memberRef.id
+      const allMembersSnap = await tx.get(groupRef.collection('members'))
+      const highestSlotNo = allMembersSnap.docs.reduce((highest, memberDoc) => {
+        const member = memberDoc.data() as GroupMemberDoc
+        return Math.max(highest, member.slotNo ?? 0)
+      }, 0)
+      const slots = Array.from({ length: chitCount }, (_, index) => ({
+        memberRef: groupRef.collection('members').doc(),
+        slotNo: highestSlotNo + index + 1,
+      }))
       if ((currentGroup.completedCycleCount ?? 0) > 0) {
         throw new AppError('invalid_transition', 'Members are locked after the first completed cycle.')
       }
@@ -254,65 +262,276 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
         return { cycleSnap, board: boardSnap.data() as BoardDoc | undefined }
       }))
 
-      tx.set(memberRef, {
-        uid,
-        slotNo,
-        displayName: name,
-        status: 'active',
-        selectedInCycle: null,
-        totalContributedMinor: 0,
-        paidCycleCount: 0,
-        joinedAt: FieldValue.serverTimestamp(),
-      })
-      tx.update(groupRef, { memberCount: FieldValue.increment(1) })
+      for (const { memberRef, slotNo } of slots) {
+        tx.set(memberRef, {
+          uid,
+          slotNo,
+          displayName: name,
+          status: 'active',
+          selectedInCycle: null,
+          totalContributedMinor: 0,
+          paidCycleCount: 0,
+          joinedAt: FieldValue.serverTimestamp(),
+        })
+      }
+      tx.update(groupRef, { memberCount: FieldValue.increment(chitCount) })
 
       // Before the first completion, a new member joins every active cycle.
       for (const { cycleSnap, board } of activeBoards) {
         const cycleRef = cycleSnap.ref
         const boardRef = cycleRef.collection('board').doc('board')
-        tx.set(cycleRef.collection('payments').doc(membershipId), {
-          amountMinor: currentGroup.contributionAmountMinor,
-          status: 'pending',
-          method: null,
-          referenceNo: null,
-          note: null,
-          paidAt: null,
-          recordedBy: null,
-          updatedAt: null,
-        } satisfies PaymentDoc)
-        if (board) {
-          const entry: BoardEntry = { membershipId, name, status: 'pending', method: null }
-          tx.set(boardRef, { entries: [...board.entries, entry] } satisfies BoardDoc)
+        for (const { memberRef } of slots) {
+          tx.set(cycleRef.collection('payments').doc(memberRef.id), {
+            amountMinor: currentGroup.contributionAmountMinor,
+            status: 'pending',
+            method: null,
+            referenceNo: null,
+            note: null,
+            paidAt: null,
+            recordedBy: null,
+            updatedAt: null,
+          } satisfies PaymentDoc)
         }
-        tx.update(cycleRef, { expectedPaymentCount: FieldValue.increment(1) })
+        if (board) {
+          const entries: BoardEntry[] = slots.map(({ memberRef }) => ({
+            membershipId: memberRef.id,
+            name,
+            status: 'pending',
+            method: null,
+          }))
+          tx.set(boardRef, { entries: [...board.entries, ...entries] } satisfies BoardDoc)
+        }
+        tx.update(cycleRef, { expectedPaymentCount: FieldValue.increment(chitCount) })
       }
 
       // member-side mirrors
-      tx.set(db.doc(`users/${uid}/memberships/${membershipId}`), {
-        groupId: input.groupId,
-        groupName: group.name,
-        membershipId,
-        contributionAmountMinor: currentGroup.contributionAmountMinor,
-        currency: group.currency,
-        status: 'active',
-        selectedInCycle: null,
-        joinedAt: FieldValue.serverTimestamp(),
-      })
+      for (const { memberRef } of slots) {
+        tx.set(db.doc(`users/${uid}/memberships/${memberRef.id}`), {
+          groupId: input.groupId,
+          groupName: group.name,
+          membershipId: memberRef.id,
+          contributionAmountMinor: currentGroup.contributionAmountMinor,
+          currency: group.currency,
+          status: 'active',
+          selectedInCycle: null,
+          joinedAt: FieldValue.serverTimestamp(),
+        })
+      }
+      const membershipIds = slots.map(({ memberRef }) => memberRef.id)
       tx.set(db.doc(`users/${uid}/groupAccess/${input.groupId}`), {
-        membershipIds: FieldValue.arrayUnion(membershipId),
+        membershipIds: FieldValue.arrayUnion(...membershipIds),
       })
 
-      return { membershipId, slotNo }
+      return { membershipIds, slotNos: slots.map(({ slotNo }) => slotNo) }
     })
 
+    // Membership creation is complete before this best-effort external send. A
+    // provider outage must not make the app retry and create a duplicate slot.
+    let notificationSent = false
+    let providerMessageId: string | null = null
+    let notificationError: string | null = null
+    try {
+      const user = (await db.doc(`users/${uid}`).get()).data() as UserDoc | undefined
+      const response = await sendLoginAccessLink(phone, name, user?.language ?? 'en')
+      providerMessageId = response.providerMessageId
+      notificationSent = true
+    } catch (sendError) {
+      notificationError = sendError instanceof Error ? sendError.message : String(sendError)
+      console.error('member access-link notification failed:', sendError)
+    }
+
+    const messageLog: MessageLogDoc = {
+      groupId: input.groupId,
+      template: 'login_access',
+      toPhone: phone,
+      membershipId: result.membershipIds[0]!,
+      providerMessageId,
+      status: notificationSent ? 'sent' : 'failed',
+      error: notificationError,
+      sentBy: adminUid,
+      createdAt: FieldValue.serverTimestamp() as unknown as number,
+      updatedAt: FieldValue.serverTimestamp() as unknown as number,
+    }
+    try {
+      await db.collection(`groups/${input.groupId}/messages`).add(messageLog)
+    } catch (logError) {
+      console.error('member access-link message log failed:', logError)
+    }
+
     return {
-      membershipId: result.membershipId,
-      slotNo: result.slotNo,
+      membershipId: result.membershipIds[0]!,
+      slotNo: result.slotNos[0]!,
+      membershipIds: result.membershipIds,
+      chitCount,
       uid,
-      password,
       isNewUser,
+      notificationSent,
     }
   } catch (err) {
     throw toHttpsError(err, { fn: 'addMember', uid: req.auth?.uid, data: req.data })
+  }
+})
+
+interface UpdateMemberChitCountInput {
+  groupId: string
+  membershipId: string
+  chitCount: number
+}
+
+export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const input = req.data as UpdateMemberChitCountInput
+    const groupId = String(input.groupId ?? '')
+    const membershipId = String(input.membershipId ?? '')
+    const targetCount = Number(input.chitCount)
+    if (!groupId || !membershipId || !Number.isInteger(targetCount) || targetCount < 1 || targetCount > 100) {
+      throw new AppError('invalid_argument', 'Number of chits must be between 1 and 100.')
+    }
+
+    return await db.runTransaction(async (tx) => {
+      const groupRef = db.doc(`groups/${groupId}`)
+      const memberRef = groupRef.collection('members').doc(membershipId)
+      const [groupSnap, memberSnap] = await Promise.all([tx.get(groupRef), tx.get(memberRef)])
+      const group = groupSnap.data() as GroupDoc | undefined
+      const member = memberSnap.data() as GroupMemberDoc | undefined
+      if (!groupSnap.exists || !group || !memberSnap.exists || !member) throw new AppError('not_found')
+      await assertAdminAccess(req.auth, group, tx)
+      assertGroupWritable(group)
+      if ((group.completedCycleCount ?? 0) > 0) {
+        throw new AppError('invalid_transition', 'Chit counts are locked after the first completed cycle.')
+      }
+      if (member.status !== 'active') throw new AppError('invalid_argument', 'This membership is inactive.')
+
+      const [personSlotsSnap, allMembersSnap, activeCyclesSnap] = await Promise.all([
+        tx.get(groupRef.collection('members').where('uid', '==', member.uid).where('status', '==', 'active')),
+        tx.get(groupRef.collection('members')),
+        tx.get(groupRef.collection('cycles').where('status', '==', 'active')),
+      ])
+      const personSlots = personSlotsSnap.docs
+        .map((slotDoc) => ({ ref: slotDoc.ref, id: slotDoc.id, data: slotDoc.data() as GroupMemberDoc }))
+        .sort((a, b) => b.data.slotNo - a.data.slotNo)
+      const currentCount = personSlots.length
+      if (targetCount === currentCount) return { chitCount: currentCount }
+
+      const activeCycles = await Promise.all(activeCyclesSnap.docs.map(async (cycleSnap) => {
+        const boardSnap = await tx.get(cycleSnap.ref.collection('board').doc('board'))
+        return { cycleSnap, board: boardSnap.data() as BoardDoc | undefined }
+      }))
+
+      if (targetCount > currentCount) {
+        const addCount = targetCount - currentCount
+        const highestSlotNo = allMembersSnap.docs.reduce((highest, slotDoc) => {
+          const slot = slotDoc.data() as GroupMemberDoc
+          return Math.max(highest, slot.slotNo ?? 0)
+        }, 0)
+        const newSlots = Array.from({ length: addCount }, (_, index) => ({
+          ref: groupRef.collection('members').doc(),
+          slotNo: highestSlotNo + index + 1,
+        }))
+
+        for (const slot of newSlots) {
+          tx.set(slot.ref, {
+            uid: member.uid,
+            slotNo: slot.slotNo,
+            displayName: member.displayName,
+            status: 'active',
+            selectedInCycle: null,
+            totalContributedMinor: 0,
+            paidCycleCount: 0,
+            joinedAt: FieldValue.serverTimestamp(),
+          })
+          tx.set(db.doc(`users/${member.uid}/memberships/${slot.ref.id}`), {
+            groupId,
+            groupName: group.name,
+            membershipId: slot.ref.id,
+            contributionAmountMinor: group.contributionAmountMinor,
+            currency: group.currency,
+            status: 'active',
+            selectedInCycle: null,
+            joinedAt: FieldValue.serverTimestamp(),
+          })
+        }
+
+        for (const { cycleSnap, board } of activeCycles) {
+          for (const slot of newSlots) {
+            tx.set(cycleSnap.ref.collection('payments').doc(slot.ref.id), {
+              amountMinor: group.contributionAmountMinor,
+              status: 'pending',
+              method: null,
+              referenceNo: null,
+              note: null,
+              paidAt: null,
+              recordedBy: null,
+              updatedAt: null,
+            } satisfies PaymentDoc)
+          }
+          if (board) {
+            const entries: BoardEntry[] = newSlots.map((slot) => ({
+              membershipId: slot.ref.id,
+              name: member.displayName,
+              status: 'pending',
+              method: null,
+            }))
+            tx.set(cycleSnap.ref.collection('board').doc('board'), { entries: [...board.entries, ...entries] } satisfies BoardDoc)
+          }
+          tx.update(cycleSnap.ref, { expectedPaymentCount: FieldValue.increment(addCount) })
+        }
+
+        const newIds = newSlots.map((slot) => slot.ref.id)
+        tx.set(db.doc(`users/${member.uid}/groupAccess/${groupId}`), {
+          membershipIds: FieldValue.arrayUnion(...newIds),
+        }, { merge: true })
+        tx.update(groupRef, { memberCount: FieldValue.increment(addCount) })
+        return { chitCount: targetCount }
+      }
+
+      const removeCount = currentCount - targetCount
+      const unusedCandidates = personSlots.filter(({ data }) =>
+        data.selectedInCycle == null
+        && (data.totalContributedMinor ?? 0) === 0
+        && (data.paidCycleCount ?? 0) === 0,
+      )
+      const candidateActivity = await Promise.all(unusedCandidates.map(async (candidate) => {
+        const activity = await Promise.all(activeCycles.map(async ({ cycleSnap }) => {
+          const [paymentSnap, eventsSnap] = await Promise.all([
+            tx.get(cycleSnap.ref.collection('payments').doc(candidate.id)),
+            tx.get(cycleSnap.ref.collection('paymentEvents').where('membershipId', '==', candidate.id).limit(1)),
+          ])
+          const payment = paymentSnap.data() as PaymentDoc | undefined
+          return Boolean((payment && payment.status === 'paid') || !eventsSnap.empty)
+        }))
+        return { candidate, hasActivity: activity.some(Boolean) }
+      }))
+      const removable = candidateActivity.filter(({ hasActivity }) => !hasActivity).slice(0, removeCount)
+      if (removable.length < removeCount) {
+        throw new AppError(
+          'invalid_transition',
+          `Cannot reduce below ${currentCount - removable.length}; some chits already have payment or selection activity.`,
+        )
+      }
+
+      const removeIds = removable.map(({ candidate }) => candidate.id)
+      const removeIdSet = new Set(removeIds)
+      for (const { candidate } of removable) {
+        tx.delete(candidate.ref)
+        tx.delete(db.doc(`users/${member.uid}/memberships/${candidate.id}`))
+      }
+      for (const { cycleSnap, board } of activeCycles) {
+        for (const id of removeIds) tx.delete(cycleSnap.ref.collection('payments').doc(id))
+        if (board) {
+          tx.set(cycleSnap.ref.collection('board').doc('board'), {
+            entries: board.entries.filter((entry) => !removeIdSet.has(entry.membershipId)),
+          } satisfies BoardDoc)
+        }
+        tx.update(cycleSnap.ref, { expectedPaymentCount: FieldValue.increment(-removeCount) })
+      }
+      tx.set(db.doc(`users/${member.uid}/groupAccess/${groupId}`), {
+        membershipIds: FieldValue.arrayRemove(...removeIds),
+      }, { merge: true })
+      tx.update(groupRef, { memberCount: FieldValue.increment(-removeCount) })
+      return { chitCount: targetCount }
+    })
+  } catch (err) {
+    throw toHttpsError(err, { fn: 'updateMemberChitCount', uid: req.auth?.uid, data: req.data })
   }
 })

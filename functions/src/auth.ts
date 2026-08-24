@@ -21,6 +21,20 @@ export function syntheticEmail(phone: string): string {
   return `${phone}@phone.chitapp.app`
 }
 
+/** Generates and sends the passwordless WhatsApp access link used by members. */
+export async function sendLoginAccessLink(
+  phone: string,
+  name: string,
+  language: Lang = 'en',
+): Promise<{ providerMessageId: string | null }> {
+  const firebaseLink = await auth.generateSignInWithEmailLink(syntheticEmail(phone), {
+    url: 'https://chitpay.web.app/login/link',
+    handleCodeInApp: true,
+  })
+  const loginLinkId = Buffer.from(firebaseLink, 'utf8').toString('base64url')
+  return messaging.sendTemplate(phone, 'login_access', { name, id: loginLinkId }, language)
+}
+
 export async function assertAdminAccess(
   requestAuth: { uid: string } | undefined,
   group?: GroupDoc | { adminUid: string },
@@ -107,17 +121,7 @@ export const requestLoginLink = onCall({ region: 'asia-south1', invoker: 'public
       transaction.set(sendRef, { lastSentAt: now })
     })
 
-    const firebaseLink = await auth.generateSignInWithEmailLink(syntheticEmail(phone), {
-      url: 'https://chitpay.web.app/login/link',
-      handleCodeInApp: true,
-    })
-    const loginLinkId = Buffer.from(firebaseLink, 'utf8').toString('base64url')
-    await messaging.sendTemplate(
-      phone,
-      'login_access',
-      { name, id: loginLinkId },
-      language,
-    )
+    await sendLoginAccessLink(phone, name, language)
     return { sent: true }
   } catch (err) {
     throw toHttpsError(err, { fn: 'requestLoginLink', uid: req.auth?.uid, data: req.data })

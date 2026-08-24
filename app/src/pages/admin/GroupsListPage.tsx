@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Users, CalendarBlank, CurrencyInr, Gear } from '@phosphor-icons/react'
+import { Plus, Ticket, Users, CalendarBlank, CurrencyInr, Gear } from '@phosphor-icons/react'
 import { fetchMyGroups, fetchMyMemberships } from '@/lib/api'
 import { formatMinor } from '@shared'
 import { Chip, Page, Button } from '@/components/ui'
@@ -124,7 +124,7 @@ export default function GroupsListPage() {
                   <>
                     <Chip tone="neutral">{t('common.admin')}</Chip>
                     <span className="inline-flex items-center gap-1">
-                      <Users size={13} /> {entry.memberCount}
+                      <Ticket size={13} /> {t('workspace.memberChitCount', { count: entry.memberCount })}
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <CalendarBlank size={13} />
@@ -153,7 +153,7 @@ function AdminKpiStrip({ entries }: { entries: ListEntry[] }) {
   const adminEntries = entries.filter((e): e is Extract<ListEntry, { kind: 'admin' }> => e.kind === 'admin')
   if (adminEntries.length === 0) return null
 
-  const members = adminEntries.reduce((sum, g) => sum + g.memberCount, 0)
+  const chits = adminEntries.reduce((sum, g) => sum + g.memberCount, 0)
   const monthlyPool = adminEntries.reduce(
     (sum, g) => sum + g.amountMinor * g.memberCount,
     0,
@@ -167,7 +167,7 @@ function AdminKpiStrip({ entries }: { entries: ListEntry[] }) {
       </div>
       <div className="px-2 py-3">
         <dt className="text-[11px] uppercase tracking-wide text-faint">{t('groups.kpiMembers')}</dt>
-        <dd className="mt-0.5 text-sm font-bold tabular-nums">{members}</dd>
+        <dd className="mt-0.5 text-sm font-bold tabular-nums">{chits}</dd>
       </div>
       <div className="px-2 py-3">
         <dt className="text-[11px] uppercase tracking-wide text-faint">{t('groups.kpiMonthlyPool')}</dt>

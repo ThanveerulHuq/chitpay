@@ -17,6 +17,7 @@ export default function PaymentSheet({
   cycleNumber,
   pendingCycleNumbers,
   fixedMembershipId,
+  membershipIds,
   onClose,
   onDone,
 }: {
@@ -25,6 +26,7 @@ export default function PaymentSheet({
   cycleNumber?: number
   pendingCycleNumbers?: number[]
   fixedMembershipId?: string
+  membershipIds?: string[]
   onClose: () => void
   onDone: () => void
 }) {
@@ -41,6 +43,7 @@ export default function PaymentSheet({
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const allowedMembershipIds = useMemo(() => membershipIds ? new Set(membershipIds) : null, [membershipIds])
   useBodyLock(true)
 
   useEffect(() => {
@@ -48,18 +51,18 @@ export default function PaymentSheet({
     if (!selectedCycleNumber) return
     void fetchBoard(groupId, selectedCycleNumber).then((next) => {
       if (cancelled) return
-      const unpaid = (next ?? []).filter((entry) => entry.status === 'pending')
+      const unpaid = (next ?? []).filter((entry) => entry.status === 'pending' && (!allowedMembershipIds || allowedMembershipIds.has(entry.membershipId)))
       setBoard(next ?? [])
-      setSelectedId((current) => current || unpaid[0]?.membershipId || '')
+      setSelectedId((current) => unpaid.some((entry) => entry.membershipId === current) ? current : unpaid[0]?.membershipId ?? '')
     })
     return () => {
       cancelled = true
     }
-  }, [groupId, selectedCycleNumber])
+  }, [allowedMembershipIds, groupId, selectedCycleNumber])
 
   const unpaid = useMemo(
-    () => (board ?? []).filter((entry) => entry.status === 'pending' && entry.name.toLowerCase().includes(search.toLowerCase())),
-    [board, search],
+    () => (board ?? []).filter((entry) => entry.status === 'pending' && (!allowedMembershipIds || allowedMembershipIds.has(entry.membershipId)) && entry.name.toLowerCase().includes(search.toLowerCase())),
+    [allowedMembershipIds, board, search],
   )
   const selected = board?.find((entry) => entry.membershipId === selectedId) ?? null
 
@@ -137,7 +140,7 @@ export default function PaymentSheet({
                       <p className="p-4 text-sm text-muted">{t('workspace.noPendingPayments')}</p>
                     ) : unpaid.map((entry) => (
                       <button key={entry.membershipId} type="button" onClick={() => setSelectedId(entry.membershipId)} className={`flex w-full items-center justify-between border-b border-line px-4 py-3 text-left last:border-0 ${selectedId === entry.membershipId ? 'bg-accent-soft' : 'hover:bg-sunken'}`}>
-                        <span className="truncate text-sm font-medium">{entry.name}</span>
+                        <span className="truncate text-sm font-medium">{entry.name}{membershipIds && <span className="ml-1 font-normal text-muted">· {t('workspace.chitNumber', { count: membershipIds.indexOf(entry.membershipId) + 1 })}</span>}</span>
                         <span className="text-xs text-muted">{t('status.pending')}</span>
                       </button>
                     ))}

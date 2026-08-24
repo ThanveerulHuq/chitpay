@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Bank, CaretRight, DotsThreeOutline, HandCoins, MagnifyingGlass, Money, QrCode, Trophy, WhatsappLogo, X } from '@phosphor-icons/react'
+import { Bank, CaretRight, DotsThreeOutline, HandCoins, MagnifyingGlass, Minus, Money, Plus, QrCode, Trophy, X } from '@phosphor-icons/react'
 import { callAddMember, callConfirmSelection, callRecordPayout } from '@/lib/api'
-import { whatsappLink } from '@/lib/whatsapp'
 import { formatMinor, toMinor } from '@shared'
 import type { BoardEntry, CycleDoc, GroupDoc, GroupMemberDoc, PaymentMethod } from '@shared'
 import { Button, ErrorNote, Field, Input, PhoneInput } from '@/components/ui'
@@ -163,19 +162,45 @@ export function AddMemberSection({ groupId, onAdded }: { groupId: string; onAdde
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [chitCount, setChitCount] = useState(1)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [invite, setInvite] = useState<{ name: string; phone: string; password: string } | null>(null)
-  useBodyLock(Boolean(invite))
-  async function add(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError(null)
-    try { const fullPhone = `+91${phone}`; const result = await callAddMember({ groupId, name, phone: fullPhone }); setInvite({ name, phone: fullPhone, password: result.password }); setOpen(false); setName(''); setPhone(''); onAdded() }
-    catch (nextError) { setError((nextError as Error).message) }
-    finally { setBusy(false) }
+
+  function isDuplicateMember(nextError: unknown) {
+    const firebaseError = nextError as { code?: string; details?: { code?: string } }
+    return firebaseError.code === 'functions/already-exists'
+      || firebaseError.code === 'already-exists'
+      || firebaseError.details?.code === 'already_exists'
   }
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    try {
+      await callAddMember({ groupId, name, phone: `+91${phone}`, chitCount })
+      setOpen(false)
+      setName('')
+      setPhone('')
+      setChitCount(1)
+      onAdded()
+    } catch (nextError) {
+      setError(isDuplicateMember(nextError) ? t('dash.duplicateMemberEditHint') : (nextError as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function add(event: FormEvent) {
+    event.preventDefault()
+    await save()
+  }
+
+  function changeChitCount(nextCount: number) {
+    setChitCount(Math.max(1, Math.min(100, nextCount)))
+  }
+
   return <>
     {!open && <Button variant="secondary" onClick={() => setOpen(true)} className="w-full">{t('dash.addMember')}</Button>}
-    {open && <form onSubmit={add} className="space-y-4 rounded-2xl border border-line bg-surface p-5"><h2 className="font-semibold">{t('dash.addMember')}</h2>{error && <ErrorNote>{error}</ErrorNote>}<Field label={t('dash.memberName')}><Input required value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label={t('dash.memberPhone')} hint={t('dash.memberPhoneHint')}><PhoneInput value={phone} onChange={setPhone} /></Field><div className="flex gap-3"><Button type="button" variant="secondary" onClick={() => setOpen(false)} className="flex-1">{t('common.cancel')}</Button><Button type="submit" disabled={busy || phone.length !== 10} className="flex-1">{busy ? t('common.adding') : t('common.add')}</Button></div></form>}
-    {invite && <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] flex items-end bg-black/40 sm:items-center sm:justify-center sm:p-4" onClick={(event) => event.target === event.currentTarget && setInvite(null)}><div className="w-full max-w-lg rounded-t-3xl bg-surface p-5 sm:rounded-2xl"><div className="flex items-start justify-between"><h2 className="text-lg font-bold">{t('dash.memberAddedTitle', { name: invite.name })}</h2><button onClick={() => setInvite(null)} aria-label={t('common.close')}><X size={20} /></button></div><div className="my-5 rounded-2xl bg-sunken p-4 text-center"><p className="text-xs text-muted">{t('dash.passwordLabel')}</p><p className="mt-1 font-mono text-2xl font-bold tracking-widest">{invite.password}</p></div><a href={whatsappLink(invite.phone, t('dash.whatsappInviteText', { name: invite.name, password: invite.password }))} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] py-3 font-semibold text-[#06301b]"><WhatsappLogo size={20} weight="fill" />{t('dash.sendViaWhatsapp')}</a></div></div>}
+    {open && <form onSubmit={add} className="space-y-4 rounded-2xl border border-line bg-surface p-5"><h2 className="font-semibold">{t('dash.addMember')}</h2>{error && <ErrorNote>{error}</ErrorNote>}<Field label={t('dash.memberName')}><Input required value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label={t('dash.memberPhone')} hint={t('dash.memberPhoneHint')}><PhoneInput value={phone} onChange={setPhone} /></Field><fieldset><legend className="text-sm font-medium text-ink">{t('dash.chitCount')}</legend><div className="mt-2 grid w-36 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-xl border border-line bg-surface"><button type="button" onClick={() => changeChitCount(chitCount - 1)} disabled={chitCount === 1} aria-label={t('dash.decreaseChitCount')} className="grid h-10 place-items-center border-r border-line text-ink transition-colors hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Minus size={16} weight="bold" /></button><output aria-live="polite" className="grid h-10 place-items-center font-bold tabular-nums text-ink">{chitCount}</output><button type="button" onClick={() => changeChitCount(chitCount + 1)} disabled={chitCount === 100} aria-label={t('dash.increaseChitCount')} className="grid h-10 place-items-center border-l border-line text-ink transition-colors hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Plus size={16} weight="bold" /></button></div><span className="mt-1 block text-xs text-muted">{t('dash.chitCountHint')}</span></fieldset><div className="flex gap-3"><Button type="button" variant="secondary" onClick={() => setOpen(false)} className="flex-1">{t('common.cancel')}</Button><Button type="submit" disabled={busy || phone.length !== 10} className="flex-1">{busy ? t('common.adding') : t('common.add')}</Button></div></form>}
   </>
 }

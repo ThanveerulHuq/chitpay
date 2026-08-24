@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type TextareaHTMLAttributes } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, CalendarBlank, CaretDown, Check } from '@phosphor-icons/react'
+import { formatIsoDate } from '@shared'
 import { useT } from '@/i18n'
 
 /* Buttons: 16px radius, tactile press, WCAG-checked label contrast. */
@@ -95,13 +96,17 @@ export function PhoneInput({
 export function DateInput({
   className = '',
   onClick,
+  value,
   ...props
 }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  const displayValue = typeof value === 'string' ? formatIsoDate(value) : ''
+
   return (
     <div className="relative mt-2">
       <input
         {...props}
         type="date"
+        value={value}
         onClick={(event) => {
           onClick?.(event)
           if (event.defaultPrevented) return
@@ -111,13 +116,19 @@ export function DateInput({
             // Fall back to the browser's default date-input interaction.
           }
         }}
-        className={`${controlCls} date-input relative mt-0 appearance-none pr-11 ${className}`}
+        className={`${controlCls} date-input relative z-10 mt-0 appearance-none pr-11 text-transparent caret-transparent ${className}`}
       />
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-y-0 left-4 z-20 flex items-center tabular-nums ${displayValue ? 'text-ink' : 'text-faint'}`}
+      >
+        {displayValue || 'dd-mm-yyyy'}
+      </span>
       <CalendarBlank
         aria-hidden="true"
         size={20}
         weight="bold"
-        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-muted"
+        className="pointer-events-none absolute right-4 top-1/2 z-20 -translate-y-1/2 text-muted"
       />
     </div>
   )

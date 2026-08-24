@@ -186,9 +186,34 @@ export function SettingsLoadingScreen() {
   )
 }
 
+export function ManagedMembersLoadingScreen() {
+  return (
+    <LoadingStatus>
+      <Page>
+        <HeaderSkeleton />
+        <Skeleton className="h-4 w-4/5" />
+        <Skeleton className="mt-4 h-12 w-full" />
+        <div className="mt-5 space-y-3">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
+              <Skeleton className="size-11 rounded-xl" />
+              <div className="min-w-0 flex-1">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="mt-2 h-3 w-1/3" />
+                <Skeleton className="mt-2 h-3 w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Page>
+    </LoadingStatus>
+  )
+}
+
 export function RouteLoadingScreen({ pathname }: { pathname: string }) {
   if (pathname === '/login' || pathname.startsWith('/login/link/')) return <LoginLoadingScreen />
   if (/^\/admin\/groups\/new$/.test(pathname)) return <CreateGroupLoadingScreen />
+  if (pathname === '/admin/settings/members') return <ManagedMembersLoadingScreen />
   if (/^\/(?:admin|member)\/settings(?:\/.*)?$/.test(pathname)) return <SettingsLoadingScreen />
   if (/^\/(?:admin|member)\/groups\/[^/]+\/payments$/.test(pathname)) return <PaymentsLoadingScreen />
   if (/^\/(?:admin|member)\/groups\/[^/]+(?:\/.*)?$/.test(pathname)) return <GroupDetailLoadingScreen />
