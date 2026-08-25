@@ -23,6 +23,7 @@ export const en = {
   'common.slot': 'Slot {slotNo}',
   'common.inactive': 'Inactive',
   'common.admin': 'Admin',
+  'common.member': 'Member',
   'common.loading': 'Loading…',
 
   // Status Chips

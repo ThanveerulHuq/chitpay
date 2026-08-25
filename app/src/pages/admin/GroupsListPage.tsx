@@ -119,7 +119,7 @@ export default function GroupsListPage() {
                     {formatMinor(entry.amountMinor, entry.currency)}
                   </span>
                 </div>
-                <div className="mt-2.5 flex items-center gap-3 text-xs text-muted">
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                 {entry.kind === 'admin' ? (
                   <>
                     <Chip tone="neutral">{t('common.admin')}</Chip>

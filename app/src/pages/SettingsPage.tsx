@@ -131,7 +131,7 @@ export default function SettingsPage() {
                 )}
               </div>
               <span className="rounded-full bg-sunken px-2.5 py-1 text-xs font-semibold text-muted">
-                {isAdmin ? t('common.admin') : 'Member'}
+                {isAdmin ? t('common.admin') : t('common.member')}
               </span>
               {isAdmin && experience === 'admin' && (
                 <button

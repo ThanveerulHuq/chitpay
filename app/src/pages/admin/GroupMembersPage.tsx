@@ -152,9 +152,10 @@ function MembersContent() {
             return (
               <li key={person.uid} className="flex items-center gap-3 py-3.5">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-semibold">{person.name}</p>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <p className="min-w-0 truncate text-sm font-semibold">{person.name}</p>
                     <Chip tone="neutral">{t('workspace.memberChitCount', { count: person.slots.length })}</Chip>
+                    {person.slots.some((slot) => slot.data.selectedInCycle != null) && <Chip tone="paid">{t('workspace.selected')}</Chip>}
                   </div>
                   {canSeeDues && <p className="mt-1 text-xs text-muted">
                     {formatMinor(total, group.currency)} · {t('workspace.paidChitPayments', { paid: paidPayments, total: group.cycleCount * person.slots.length })}
@@ -166,7 +167,6 @@ function MembersContent() {
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {person.slots.some((slot) => slot.data.selectedInCycle != null) && <Chip tone="paid">{t('workspace.selected')}</Chip>}
                   {!isReadOnly && group.completedCycleCount === 0 && <button type="button" onClick={() => setEditMember(person)} aria-label={t('workspace.editChitCountFor', { name: person.name })} title={t('workspace.editChitCountFor', { name: person.name })} className="rounded-full border border-line p-2 text-muted hover:bg-sunken hover:text-ink"><PencilSimple size={17} weight="bold" /></button>}
                   {!isReadOnly && pendingPaymentCount > 0 && (
                     <>

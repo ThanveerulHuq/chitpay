@@ -25,6 +25,7 @@ export const ta = {
   'common.slot': 'எண் {slotNo}',
   'common.inactive': 'செயலில் இல்லை',
   'common.admin': 'நிர்வாகி',
+  'common.member': 'உறுப்பினர்',
   'common.loading': 'ஏற்றப்படுகிறது…',
 
   // Status Chips

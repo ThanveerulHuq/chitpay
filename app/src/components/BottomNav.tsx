@@ -40,7 +40,7 @@ export default function BottomNav() {
           >
             <UserCircle size={24} weight={experience === 'member' ? 'fill' : 'regular'} />
             <span className="text-[10px] font-medium uppercase tracking-wide">
-              Member
+              {t('common.member')}
             </span>
           </button>
         </div>
