@@ -203,10 +203,11 @@ export default function GroupShell({ children }: { children: ReactNode }) {
                 {!isReportsPage && (
                   <Link
                     to={groupPath(experience, groupId, 'reports')}
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-accent-strong hover:bg-accent-soft dark:text-accent"
+                    aria-label={t('workspace.reports')}
+                    className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-sm font-semibold text-accent-strong hover:bg-accent-soft sm:px-3 dark:text-accent"
                   >
                     <FileText size={17} weight="bold" />
-                    {t('workspace.reports')}
+                    <span className="hidden sm:inline">{t('workspace.reports')}</span>
                   </Link>
                 )}
                 {canEditSettings && (
@@ -413,7 +414,7 @@ function WorkspaceTab({ to, active, children }: { to: string; active: boolean; c
   return (
     <NavLink
       to={to}
-      className={`border-b-2 px-3 py-2.5 text-center text-sm font-semibold transition-colors ${
+      className={`flex items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-2 py-2.5 text-center text-sm font-semibold transition-colors ${
         active ? 'border-accent text-accent-strong dark:text-accent' : 'border-transparent text-muted hover:text-ink'
       }`}
     >

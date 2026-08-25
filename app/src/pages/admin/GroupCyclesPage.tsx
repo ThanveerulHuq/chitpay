@@ -47,7 +47,7 @@ function CyclesContent() {
           <div className="flex items-start justify-between gap-3">
             <Link to={groupPath(experience, groupId, `cycles/${id}`)} className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><h2 className="font-bold">{formatCycleName(data.plannedStartDate, group.frequency, locale, t)}</h2><StatusChip status={data.status} t={t} /></div>
-              <p className="mt-1 text-sm text-muted">{t('workspace.plannedStart', { date: formatIsoDate(data.plannedStartDate) })}</p>
+              <p className="mt-1 text-sm text-muted">{t('workspace.plannedStart')} <span aria-hidden>·</span> <span className="whitespace-nowrap">{formatIsoDate(data.plannedStartDate)}</span></p>
               {data.status !== 'upcoming' && <div className="mt-3 grid grid-cols-2 gap-2 text-sm">{(!isMemberView || showOtherMemberDues) && <><span className="text-muted">{t('workspace.collected')}</span><span className="text-right font-semibold">{formatMinor(data.collectedAmountMinor, group.currency)} / {formatMinor(expectedAmount, group.currency)}</span></>}<span className="text-muted">{t('workspace.winner')}</span><span className="flex min-w-0 items-center justify-end gap-1 font-semibold">{winner ? <><Trophy size={14} className="shrink-0" /><span className="truncate">{winner}</span></> : t('workspace.notSelected')}</span></div>}
             </Link>
             {!(data.status === 'upcoming' && !isReadOnly) && <ArrowRight size={18} className="mt-1 shrink-0 text-faint" />}

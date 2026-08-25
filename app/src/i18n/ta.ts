@@ -193,7 +193,7 @@ export const ta = {
   'workspace.cycleAmount': '{cycle} · {amount}',
   'workspace.cycleNumber': 'சுற்று {cycle}',
   'workspace.weekCycleName': '{month} வாரம் - {week}',
-  'workspace.plannedStart': 'திட்டமிட்ட தொடக்கம் · {date}',
+  'workspace.plannedStart': 'திட்டமிட்ட தொடக்கம்',
   'workspace.plannedDateInfo': 'இந்த தேதி ஒரு திட்டம் மட்டுமே. நிர்வாகி இந்த சுற்றை முன்னதாகவோ பின்னதாகவோ தொடங்கலாம்.',
   'workspace.startCycle': 'சுற்றைத் தொடங்கு',
   'workspace.startCycleNeedsMember': 'ஒரு சுற்றைத் தொடங்குவதற்கு முன் உறுப்பினரைச் சேர்க்கவும்.',

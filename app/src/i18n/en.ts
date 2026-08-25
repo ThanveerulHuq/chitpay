@@ -191,7 +191,7 @@ export const en = {
   'workspace.cycleAmount': '{cycle} · {amount}',
   'workspace.cycleNumber': 'Cycle {cycle}',
   'workspace.weekCycleName': '{month} Wk - {week}',
-  'workspace.plannedStart': 'Planned start · {date}',
+  'workspace.plannedStart': 'Planned start',
   'workspace.plannedDateInfo': 'This date is only a plan. The admin can start this cycle earlier or later.',
   'workspace.startCycle': 'Start cycle',
   'workspace.startCycleNeedsMember': 'Add a member before starting a cycle.',
