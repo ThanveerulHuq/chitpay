@@ -11,6 +11,7 @@ import type {
   PaymentDoc,
   PaymentEventDoc,
   PaymentMethod,
+  Lang,
 } from '@shared'
 import { functions, db } from './firebase'
 import { auth } from './firebase'
@@ -128,6 +129,11 @@ export async function callUpdateManagedMemberProfile(input: {
 export async function callUpdateOwnName(name: string): Promise<void> {
   const call = httpsCallable<{ name: string }, { ok: boolean }>(functions, 'updateOwnName')
   await call({ name })
+}
+
+export async function callUpdateOwnLanguage(language: Lang): Promise<void> {
+  const call = httpsCallable<{ language: Lang }, { ok: boolean }>(functions, 'updateOwnLanguage')
+  await call({ language })
 }
 
 export async function fetchMyGroups(): Promise<{ id: string; data: GroupDoc }[]> {

@@ -6,6 +6,7 @@ import {
   assertGroupWritable,
   generateCycleSchedule,
   normalizePhone,
+  resolveMessageLanguage,
   resolveUnarchiveStatus,
 } from '@chitapp/shared'
 import type { BoardDoc, BoardEntry, CycleDoc, CycleFrequency, GroupDoc, GroupMemberDoc, MessageLogDoc, PaymentDoc, UserDoc } from '@chitapp/shared'
@@ -383,8 +384,14 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
     let providerMessageId: string | null = null
     let notificationError: string | null = null
     try {
-      const user = (await db.doc(`users/${uid}`).get()).data() as UserDoc | undefined
-      const response = await sendLoginAccessLink(phone, name, user?.language ?? 'en')
+      const [userSnap, adminSnap] = await db.getAll(
+        db.doc(`users/${uid}`),
+        db.doc(`users/${group.adminUid}`),
+      )
+      const user = userSnap.data() as UserDoc | undefined
+      const admin = adminSnap.data() as UserDoc | undefined
+      const language = resolveMessageLanguage(user?.language, admin?.language)
+      const response = await sendLoginAccessLink(phone, name, language)
       providerMessageId = response.providerMessageId
       notificationSent = true
     } catch (sendError) {

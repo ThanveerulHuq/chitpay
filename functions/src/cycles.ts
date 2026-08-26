@@ -6,6 +6,7 @@ import {
   assertGroupWritable,
   formatMinor,
   getCycleStartBlockReason,
+  resolveMessageLanguage,
   summarizePendingCyclePayments,
 } from '@chitapp/shared'
 import type {
@@ -284,6 +285,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
     if (!board) throw new AppError('not_found')
 
     const template = 'pending_payments_reminder'
+    const admin = (await db.doc(`users/${group.adminUid}`).get()).data() as UserDoc | undefined
 
     let targets = board.entries.filter((e) => e.status === 'pending')
     if (membershipId) targets = targets.filter((e) => e.membershipId === membershipId)
@@ -301,7 +303,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
       let error: string | null = null
       let providerMessageId: string | null = null
       try {
-        const language = user.language ?? 'en'
+        const language = resolveMessageLanguage(user.language, admin?.language)
         const res = await messaging.sendTemplate(user.phone, template, {
           member_name: member.displayName,
           group_name: group.name,
@@ -384,15 +386,19 @@ export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'publ
       return { sent: 0, pendingCycleCount: 0, cycleNumbers, totalDueMinor }
     }
 
-    const userSnap = await db.doc(`users/${member.uid}`).get()
+    const [userSnap, adminSnap] = await db.getAll(
+      db.doc(`users/${member.uid}`),
+      db.doc(`users/${group.adminUid}`),
+    )
     const user = userSnap.data() as UserDoc | undefined
+    const admin = adminSnap.data() as UserDoc | undefined
     if (!user?.phone) throw new AppError('not_found', 'This member has no phone number.')
 
     const template = 'pending_payments_reminder' as const
     let error: string | null = null
     let providerMessageId: string | null = null
     try {
-      const language = user.language ?? 'en'
+      const language = resolveMessageLanguage(user.language, admin?.language)
       const res = await messaging.sendTemplate(user.phone, template, {
         member_name: member.displayName,
         group_name: group.name,

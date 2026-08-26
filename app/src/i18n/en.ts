@@ -295,7 +295,7 @@ export const en = {
   // Settings
   'settings.title': 'Settings',
   'settings.language': 'Language',
-  'settings.languageDesc': 'Select your preferred app language',
+  'settings.languageDesc': 'Choose the language for the app and your WhatsApp messages',
   'settings.english': 'English',
   'settings.tamil': 'தமிழ் (Tamil)',
   'settings.account': 'Account',

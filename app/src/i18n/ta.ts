@@ -297,7 +297,7 @@ export const ta = {
   // Settings
   'settings.title': 'அமைப்புகள்',
   'settings.language': 'மொழி',
-  'settings.languageDesc': 'பயன்பாட்டின் விருப்ப மொழியைத் தேர்ந்தெடுக்கவும்',
+  'settings.languageDesc': 'பயன்பாடு மற்றும் WhatsApp செய்திகளுக்கான மொழியைத் தேர்ந்தெடுக்கவும்',
   'settings.english': 'English',
   'settings.tamil': 'தமிழ் (Tamil)',
   'settings.account': 'கணக்கு',

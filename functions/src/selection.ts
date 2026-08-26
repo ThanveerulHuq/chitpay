@@ -5,6 +5,7 @@ import {
   AppError,
   assertGroupWritable,
   formatMinor,
+  resolveMessageLanguage,
   validateSelectionParticipants,
 } from '@chitapp/shared'
 import type {
@@ -134,13 +135,17 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
 
     // Best-effort recipient notification after the transaction commits.
     try {
-      const userSnap = await db.doc(`users/${notifiedUid}`).get()
+      const [userSnap, adminSnap] = await db.getAll(
+        db.doc(`users/${notifiedUid}`),
+        db.doc(`users/${uid}`),
+      )
       const user = userSnap.data() as UserDoc | undefined
+      const admin = adminSnap.data() as UserDoc | undefined
       if (user?.phone) {
         let error: string | null = null
         let providerMessageId: string | null = null
         try {
-          const language = user.language ?? 'en'
+          const language = resolveMessageLanguage(user.language, admin?.language)
           const res = await messaging.sendTemplate(user.phone, 'recipient_notification', {
             member_name: notifiedName,
             group_name: groupName,

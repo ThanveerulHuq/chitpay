@@ -3,6 +3,7 @@ import { FieldValue, type DocumentReference, type WriteBatch } from 'firebase-ad
 import {
   AppError,
   normalizePhone,
+  resolveMessageLanguage,
   type BoardDoc,
   type GroupDoc,
   type GroupMemberDoc,
@@ -125,7 +126,7 @@ async function updateAccountProfile(
   uid: string,
   name: string,
   requestedPhone?: string,
-): Promise<{ phoneChanged: boolean; phone: string; language: Lang }> {
+): Promise<{ phoneChanged: boolean; phone: string; language?: Lang }> {
   const profileRef = db.doc(`users/${uid}`)
   const profileSnap = await profileRef.get()
   const profile = profileSnap.data() as UserDoc | undefined
@@ -207,7 +208,7 @@ async function updateAccountProfile(
   await commitWrites(writes)
   if (phoneChanged) await auth.revokeRefreshTokens(uid)
 
-  return { phoneChanged, phone, language: profile.language ?? 'en' }
+  return { phoneChanged, phone, language: profile.language }
 }
 
 export const listManagedMembers = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
@@ -292,7 +293,9 @@ export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoke
     let notificationError: string | null = null
     if (update.phoneChanged) {
       try {
-        const response = await sendLoginAccessLink(update.phone, name, update.language)
+        const adminProfile = (await db.doc(`users/${adminUid}`).get()).data() as UserDoc | undefined
+        const language = resolveMessageLanguage(update.language, adminProfile?.language)
+        const response = await sendLoginAccessLink(update.phone, name, language)
         providerMessageId = response.providerMessageId
         notificationSent = true
       } catch (error) {

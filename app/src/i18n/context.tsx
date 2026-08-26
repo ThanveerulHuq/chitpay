@@ -6,9 +6,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { doc, setDoc } from 'firebase/firestore'
-import { auth, db } from '@/lib/firebase'
 import { useAuth } from '@/lib/useAuth'
+import { callUpdateOwnLanguage } from '@/lib/api'
+import { auth } from '@/lib/firebase'
 import type { Lang, TranslationKey } from './types'
 import { en } from './en'
 import { ta } from './ta'
@@ -73,7 +73,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       const currentUid = user?.uid ?? auth.currentUser?.uid
       if (currentUid) {
         try {
-          await setDoc(doc(db, 'users', currentUid), { language: nextLang }, { merge: true })
+          await callUpdateOwnLanguage(nextLang)
         } catch {
           // non-fatal
         }
