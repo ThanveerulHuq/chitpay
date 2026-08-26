@@ -52,6 +52,7 @@ export const ta = {
   'login.whatsappNotice': 'உங்கள் WhatsApp எண்ணிற்கு OTP அனுப்பப்படும்.',
   'login.sendAccessLink': 'உள்நுழைவு இணைப்பு அனுப்பு',
   'login.whatsappLinkNotice': 'உங்கள் WhatsApp எண்ணிற்கு பாதுகாப்பான உள்நுழைவு இணைப்பு அனுப்பப்படும்.',
+  'login.devSignIn': 'டெவ் உள்நுழைவு (வாசிப்பதற்கு மட்டும்)',
   'login.linkSentTitle': 'WhatsApp-ஐப் பார்க்கவும்',
   'login.linkSentTo': '+91 {phone} எண்ணிற்கு உள்நுழைவு இணைப்பை அனுப்பியுள்ளோம். உள்நுழைய அதைத் திறக்கவும்.',
   'login.openingLink': 'உள்நுழைகிறது…',

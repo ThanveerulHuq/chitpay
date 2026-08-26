@@ -12,3 +12,8 @@ ui-debug.log
 .env.production
 .agents
 .worktrees/
+
+
+# test admin credentials
+e2e/.test-admin-password
+e2e/.test-admin-notes

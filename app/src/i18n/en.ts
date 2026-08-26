@@ -50,6 +50,7 @@ export const en = {
   'login.whatsappNotice': 'We will send a login code to your WhatsApp.',
   'login.sendAccessLink': 'Send access link',
   'login.whatsappLinkNotice': 'We will send a secure access link to your WhatsApp.',
+  'login.devSignIn': 'Dev sign-in (read-only)',
   'login.linkSentTitle': 'Check your WhatsApp',
   'login.linkSentTo': 'We sent an access link to +91 {phone}. Open it soon to sign in.',
   'login.openingLink': 'Signing you in…',

@@ -1,5 +1,6 @@
 import {
   isSignInWithEmailLink,
+  signInAnonymously,
   signInWithCustomToken,
   signInWithEmailAndPassword,
   signInWithEmailLink,
@@ -80,4 +81,14 @@ export async function signInWithPassword(
   password: string,
 ): Promise<void> {
   await signInWithEmailAndPassword(auth, syntheticEmail(phone), password)
+}
+
+/**
+ * Dev-only anonymous sign-in for the e2e harness. Never called from
+ * production builds (the login page gates it behind import.meta.env.DEV).
+ * The anonymous user has no users/{uid} doc and no roles, so the app runs
+ * in member view with read-only access.
+ */
+export async function devSignIn(): Promise<void> {
+  await signInAnonymously(auth)
 }

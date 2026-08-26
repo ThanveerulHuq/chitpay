@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { WhatsappLogo } from '@phosphor-icons/react'
-import { requestLoginLink, signInWithPassword } from '@/lib/auth'
+import { requestLoginLink, devSignIn, signInWithPassword } from '@/lib/auth'
 import { userMessage } from '@shared'
 import { Button, ErrorNote, Field, Input, PhoneInput } from '@/components/ui'
 import { useI18n } from '@/i18n'
@@ -33,12 +33,24 @@ export default function LoginPage() {
     }
   }
 
+  async function handleDevSignIn() {
+    setError(null)
+    setBusy(true)
+    try {
+      await devSignIn()
+      window.location.replace('/groups')
+    } catch (err) {
+      setError(errMessage(err, lang))
+      setBusy(false)
+    }
+  }
+
   async function handlePasswordLogin(e: FormEvent) {
     e.preventDefault()
     setError(null)
     setBusy(true)
     try {
-      await signInWithPassword(fullPhone, password)
+      await signInWithPassword(fullPhone, formatPassword(password))
       window.location.replace('/')
     } catch (err) {
       setError(errMessage(err, lang))
@@ -131,6 +143,18 @@ export default function LoginPage() {
           {mode === 'password' && <WhatsappLogo size={16} />}
           {mode === 'link' ? t('login.usePasswordInstead') : t('login.useWhatsappInstead')}
         </button>
+
+        {import.meta.env.DEV && (
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => void handleDevSignIn()}
+            className="mx-auto mt-4 flex w-auto text-xs text-faint"
+          >
+            {busy ? t('common.signingIn') : t('login.devSignIn')}
+          </Button>
+        )}
       </div>
     </div>
   )
@@ -159,6 +183,10 @@ function errMessage(err: unknown, lang: 'en' | 'ta' = 'en'): string {
       return lang === 'ta'
         ? 'சேவையகத்தை இணைக்க முடியவில்லை. உங்கள் இணைப்பைச் சரிபார்க்கவும்.'
         : "Can't reach the server. Check your connection."
+    case 'auth/admin-restricted-operation':
+      return lang === 'ta'
+        ? 'டெவ் உள்நுழைவு கிடைக்கவில்லை: Firebase Auth-இல் Anonymous provider-ஐ இயக்கவும்.'
+        : 'Dev sign-in unavailable: enable the Anonymous provider in Firebase Auth.'
     default:
       return userMessage('internal', lang)
   }
