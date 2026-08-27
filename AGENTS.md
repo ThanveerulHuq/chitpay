@@ -2,35 +2,39 @@
 
 ## Packages
 
-Multi-package repo **without** npm workspaces — each package has its own lockfile and install:
+**pnpm + Turbo monorepo** — single `pnpm-lock.yaml` at root, workspaces declared in `pnpm-workspace.yaml`, task pipeline in `turbo.json`:
 
 ```bash
-npm ci --prefix shared && npm ci --prefix functions && npm ci --prefix app
+pnpm install          # install all workspaces
+pnpm build            # turbo run build (shared → functions → app via ^build)
+pnpm typecheck        # shared typecheck + builds for functions/app
+pnpm test             # all workspace tests (or pnpm --filter @chitapp/shared test for single)
 ```
 
-| Path | Role |
-|---|---|
-| `shared/` | `@chitapp/shared`: domain types, cycle state machine, currency, errors, OTP/password, WhatsApp templates |
-| `functions/` | Firebase Cloud Functions — every Firestore write lives here |
-| `app/` | React 19 + Vite PWA (Tailwind 4, react-router, custom i18n) |
+| Path | Role | Package name |
+|---|---|---|
+| `shared/` | `@chitapp/shared`: domain types, cycle state machine, currency, errors, OTP/password, WhatsApp templates | `@chitapp/shared` |
+| `functions/` | Firebase Cloud Functions — every Firestore write lives here | `chitapp-functions` |
+| `app/` | React 19 + Vite PWA (Tailwind 4, react-router, custom i18n) | `app` |
+| `remotion/` | Remotion video renders | `chitpay-remotion` |
 
-Dependency direction: `functions -> shared/dist` (via `file:../shared`), `app -> shared/src` (via the `@shared` alias in vite/tsconfig). Nothing depends on `app`. If you change `shared/`, rebuild it (`npm run build --prefix shared`) before building or typechecking functions.
+Dependency direction: `functions -> @chitapp/shared` (`workspace:*`), `app -> @chitapp/shared` (`workspace:*` + `@shared` alias in vite/tsconfig still resolves to `../shared/src` for dev). Nothing depends on `app`. Turbo ensures `shared` builds before consumers via `dependsOn: ["^build"]`. Still rebuild shared before typechecking consumers if you changed it manually (turbo will do it if you run through `pnpm build` / `pnpm typecheck`).
 
 ## Commands
 
-From root unless noted:
+From root unless noted (all via pnpm + turbo):
 
-- `npm run dev` — Vite dev server for `app`
-- `npm run typecheck` — shared typecheck + real builds of functions and app; this is the repo's "everything compiles" check (no CI exists)
-- `npm run build` — shared → functions → app; order matters (functions needs `shared/dist`)
-- `npm run test:shared` — vitest unit tests; single file: `npx vitest run src/currency.test.ts` from `shared/`
-- `npm run lint --prefix app` — oxlint (`app/.oxlintrc.json`); the only linter in the repo
+- `pnpm dev` — Vite dev server for `app` (`pnpm --filter app dev`)
+- `pnpm typecheck` — shared typecheck + real builds of functions and app; this is the repo's "everything compiles" check (no CI exists)
+- `pnpm build` — `turbo run build`; order handled by turbo (`shared` first)
+- `pnpm test` / `pnpm test:shared` — vitest unit tests; single file: `pnpm --filter @chitapp/shared exec vitest run src/currency.test.ts`
+- `pnpm lint` — oxlint via `turbo run lint --filter=app` (`app/.oxlintrc.json`); the only linter in the repo
 
 ## E2E browser harness
 
 Browser tests are driven by the `agent-browser` CLI against the Vite dev server — no test framework, scripts live in `e2e/`.
 
-- `npm run test:e2e` — full run: starts vite on :5173 (reuses one already running), runs read-only smoke checks (`e2e/smoke.sh`), tears down. Exit code 0 = pass.
+- `pnpm test:e2e` — full run: starts vite on :5173 (reuses one already running), runs read-only smoke checks (`e2e/smoke.sh`), tears down. Exit code 0 = pass.
 - Auth uses the login page's **dev sign-in bypass** (anonymous Firebase Auth, only rendered when `import.meta.env.DEV`) — no real WhatsApp OTP needed. It requires the Anonymous provider to be enabled in the Firebase project. The anonymous user has no profile doc and no roles, so the app runs in member view, read-only.
 - To drive the browser manually (debugging a failing check): `agent-browser --session chitpay-e2e open http://localhost:5173/groups`, then `snapshot -i`, interact via refs. Always close with `agent-browser --session chitpay-e2e close`.
 - **The dev server hits real production data** (see Firebase backend below). Smoke checks are strictly read-only; never add an e2e step that taps a button which triggers a callable mutation.
@@ -45,7 +49,7 @@ Browser tests are driven by the `agent-browser` CLI against the Vite dev server 
 Provisioning/re-provisioning the test admin (needs Application Default Credentials — see below). Read the concrete values from `e2e/.test-admin-notes`; the snippets use placeholders:
 
 ```bash
-npm run admin:create --prefix functions -- +<phone> "E2E Admin"   # creates/updates Auth user + users/{uid} with roles ['admin','member']
+pnpm --filter chitapp-functions admin:create -- +<phone> "E2E Admin"   # creates/updates Auth user + users/{uid} with roles ['admin','member']
 node -e "…getAuth().updateUser('<uid>', { password })…"  # set an 8-char password matching shared's generateMemberPassword format (XXXX-XXXX)
 ```
 
@@ -81,4 +85,4 @@ Password gotcha: the login form strips non-alphanumerics then re-formats, so it 
 
 ## Verification before finishing
 
-No CI is configured. Run `npm run typecheck` and `npm run test:shared`, plus `npm run lint --prefix app` if you touched `app/`. If you touched the app UI or routes, also run `npm run test:e2e`.
+No CI is configured. Run `pnpm typecheck` and `pnpm test:shared`, plus `pnpm lint` if you touched `app/`. If you touched the app UI or routes, also run `pnpm test:e2e`.

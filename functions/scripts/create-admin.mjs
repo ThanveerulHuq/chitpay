@@ -7,8 +7,8 @@ const PROJECT_ID = 'chitpay'
 const DATABASE_ID = 'chitpay'
 
 function usage() {
-  console.error('Usage: npm run admin:create --prefix functions -- <phone> <name>')
-  console.error('Example: npm run admin:create --prefix functions -- +919003711581 "Imthiyaz"')
+  console.error('Usage: pnpm --filter chitapp-functions admin:create -- <phone> <name>')
+  console.error('Example: pnpm --filter chitapp-functions admin:create -- +919003711581 "Imthiyaz"')
 }
 
 async function main() {

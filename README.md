@@ -41,20 +41,18 @@ ChitPay replaces scattered WhatsApp messages, spreadsheets, notebooks, and manua
 ### Prerequisites
 
 - Node.js 22
-- npm
+- pnpm 9+ (`corepack enable` if needed)
 
 Install the workspace dependencies:
 
 ```bash
-npm ci --prefix shared
-npm ci --prefix functions
-npm ci --prefix app
+pnpm install
 ```
 
 Start the web application:
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 The Vite development server will print the local URL in your terminal. In local
@@ -65,13 +63,14 @@ the config in `app/.env` (see `app/.env.production` for the shape of it).
 
 ```bash
 # Type-check the shared package and build the functions and web app
-npm run typecheck
+pnpm typecheck        # or pnpm build for just builds
 
-# Create a production build
-npm run build
+# Create a production build (turbo handles shared→functions→app order)
+pnpm build
 
-# Run shared unit tests
-npm run test:shared
+# Run shared unit tests (or pnpm test for all workspaces)
+pnpm test:shared
+pnpm --filter app lint
 ```
 
 ## Kwic WhatsApp configuration
@@ -94,7 +93,7 @@ through the trusted local script. Authenticate with Application Default
 Credentials, then run:
 
 ```bash
-npm run admin:create --prefix functions -- +919003711581 "Imthiyaz"
+pnpm --filter chitapp-functions admin:create -- +919003711581 "Imthiyaz"
 ```
 
 The command is safe to rerun. It creates or reuses the synthetic-email Firebase

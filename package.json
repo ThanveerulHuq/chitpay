@@ -2,12 +2,22 @@
   "name": "chitapp",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
   "scripts": {
-    "dev": "npm run dev --prefix app",
-    "build": "npm run build --prefix shared && npm run build --prefix functions && npm run build --prefix app",
-    "typecheck": "npm run typecheck --prefix shared && npm run build --prefix functions && npm run build --prefix app",
-    "test:shared": "npm test --prefix shared",
+    "dev": "pnpm --filter app dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck --filter=@chitapp/shared && turbo run build --filter=chitapp-functions --filter=app",
+    "test": "turbo run test",
+    "test:shared": "pnpm --filter @chitapp/shared test",
     "test:e2e": "bash e2e/run.sh",
-    "deploy:hosting": "npm run build && firebase deploy --only hosting"
+    "lint": "turbo run lint --filter=app",
+    "deploy:hosting": "pnpm run build && firebase deploy --only hosting"
+  },
+  "devDependencies": {
+    "turbo": "^2.10.12"
   }
 }

@@ -11,6 +11,7 @@
     "admin:create": "node scripts/create-admin.mjs",
     "build": "rm -rf lib && tsc --noEmit && esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=lib/index.js --external:firebase-admin --external:firebase-functions",
     "build:watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log"
   },
@@ -19,7 +20,7 @@
     "firebase-functions": "^6.1.0"
   },
   "devDependencies": {
-    "@chitapp/shared": "file:../shared",
+    "@chitapp/shared": "workspace:*",
     "esbuild": "^0.28.2",
     "typescript": "~6.0.2"
   }

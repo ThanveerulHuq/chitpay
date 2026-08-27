@@ -2,8 +2,8 @@
 # E2E harness entry point: starts the dev server if needed, runs the
 # agent-browser smoke checks, then tears everything down.
 #
-#   npm run test:e2e          # full run (uses saved auth state if present)
-#   npm run e2e:login         # one-time interactive login bootstrap
+#   pnpm test:e2e          # full run (uses saved auth state if present)
+#   pnpm e2e:login         # one-time interactive login bootstrap
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,7 +20,7 @@ if curl -sf "$URL" >/dev/null 2>&1; then
   echo "e2e: reusing dev server already running at $URL"
 else
   echo "e2e: starting vite on :$PORT ..."
-  npm run dev --prefix app -- --port "$PORT" --strictPort >/tmp/chitpay-e2e-vite.log 2>&1 &
+  pnpm --filter app dev -- --port "$PORT" --strictPort >/tmp/chitpay-e2e-vite.log 2>&1 &
   VITE_PID=$!
   for _ in $(seq 1 120); do
     curl -sf "$URL" >/dev/null 2>&1 && break
