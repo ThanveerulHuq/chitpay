@@ -19,6 +19,7 @@ const GroupReportsPage = lazy(() => import('@/pages/admin/GroupReportsPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const ArchivedGroupsPage = lazy(() => import('@/pages/admin/ArchivedGroupsPage'))
 const ManagedMembersPage = lazy(() => import('@/pages/admin/ManagedMembersPage'))
+const ProviderSettingsPage = lazy(() => import('@/pages/admin/ProviderSettingsPage'))
 
 function RequireAuth() {
   const { user, loading } = useAuth()
@@ -90,6 +91,7 @@ export default function App() {
             <Route path="settings" element={<SettingsPage />} />
             <Route path="settings/archived-groups" element={<ArchivedGroupsPage />} />
             <Route path="settings/members" element={<ManagedMembersPage />} />
+            <Route path="settings/provider" element={<ProviderSettingsPage />} />
             <Route path="*" element={<Navigate to="groups" replace />} />
           </Route>
           <Route path="/member" element={<RequireAuth />}>

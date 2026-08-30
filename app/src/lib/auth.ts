@@ -11,6 +11,15 @@ import { auth, functions } from './firebase'
 
 const LOGIN_EMAIL_STORAGE_KEY = 'chitapp_login_email'
 
+async function recordLoginBestEffort(): Promise<void> {
+  const call = httpsCallable<Record<string, never>, { ok: boolean }>(functions, 'recordLogin')
+  try {
+    await call({})
+  } catch (error) {
+    console.error('Could not record last login:', error)
+  }
+}
+
 /** Synthetic email used as the Firebase Auth identifier for phone-based users. */
 export function syntheticEmail(phone: string): string {
   return `${normalizePhone(phone)}@phone.chitapp.app`
@@ -52,6 +61,7 @@ export async function verifyLoginLink(payload: string, phone?: string): Promise<
   }
   if (!email) throw new Error('login_phone_required')
   await signInWithEmailLink(auth, email, firebaseLink)
+  await recordLoginBestEffort()
   try {
     localStorage.removeItem(LOGIN_EMAIL_STORAGE_KEY)
   } catch {
@@ -74,6 +84,7 @@ export async function verifyOtp(phone: string, code: string): Promise<void> {
   )
   const res = await call({ phone: normalizePhone(phone), code })
   await signInWithCustomToken(auth, res.data.token)
+  // OTP verification already records the login server-side.
 }
 
 export async function signInWithPassword(
@@ -81,6 +92,7 @@ export async function signInWithPassword(
   password: string,
 ): Promise<void> {
   await signInWithEmailAndPassword(auth, syntheticEmail(phone), password)
+  await recordLoginBestEffort()
 }
 
 /**

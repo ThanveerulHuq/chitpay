@@ -5,7 +5,6 @@ const vars = {
   memberName: 'Farhan',
   groupName: 'Ahmed Friends Group',
   amountMinor: 1000000,
-  currency: 'INR',
 }
 
 describe('message templates', () => {

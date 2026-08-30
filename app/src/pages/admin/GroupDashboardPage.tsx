@@ -49,16 +49,16 @@ export function SelectionSection({ groupId, group, cycle, board, members, onChan
   })
   const willing = eligible.filter((entry) => willingMembershipIds.has(entry.membershipId))
   const visibleEligible = eligible.filter((entry) => entry.name.toLowerCase().includes(search.trim().toLowerCase()))
-  const poolAmountMinor = group.contributionAmountMinor * cycle.expectedPaymentCount
+  const poolAmountMinor = group.contributionAmountInPaise * cycle.expectedPaymentCount
   useBodyLock(pickerOpen)
   if (cycle.status !== 'active') return null
 
   if (cycle.recipientMembershipId) {
     const recipient = board.find((entry) => entry.membershipId === cycle.recipientMembershipId)
     if (cycle.payout.status === 'pending') {
-      return <PayoutSection groupId={groupId} cycleNumber={cycle.cycleNumber} recipientName={recipient?.name ?? t('memberView.aMember')} poolAmountMinor={poolAmountMinor} currency={group.currency} onChanged={onChanged} onError={onError} />
+      return <PayoutSection groupId={groupId} cycleNumber={cycle.cycleNumber} recipientName={recipient?.name ?? t('memberView.aMember')} poolAmountMinor={poolAmountMinor} onChanged={onChanged} onError={onError} />
     }
-    return <div className="mt-4 flex items-center gap-3 rounded-2xl bg-accent-soft p-4"><HandCoins size={22} className="text-accent-strong dark:text-accent" /><div><p className="text-sm font-semibold">{t('dash.payoutRecorded')}</p><p className="text-xs text-muted">{recipient?.name} · {formatMinor(cycle.payout.amountMinor, group.currency)}</p></div></div>
+    return <div className="mt-4 flex items-center gap-3 rounded-2xl bg-accent-soft p-4"><HandCoins size={22} className="text-accent-strong dark:text-accent" /><div><p className="text-sm font-semibold">{t('dash.payoutRecorded')}</p><p className="text-xs text-muted">{recipient?.name} · {formatMinor(cycle.payout.amountMinor)}</p></div></div>
   }
 
   async function confirmWinner() {
@@ -118,7 +118,7 @@ export function SelectionSection({ groupId, group, cycle, board, members, onChan
         {winner ? <div className="flex-1 overflow-y-auto p-6 text-center">
           <Trophy size={42} weight="fill" className="mx-auto text-accent-strong dark:text-accent" />
           <p className="mt-4 text-2xl font-bold">{winner.name}</p>
-          <p className="mt-1 text-sm text-muted">{formatMinor(poolAmountMinor, group.currency)}</p>
+          <p className="mt-1 text-sm text-muted">{formatMinor(poolAmountMinor)}</p>
           {pickerError && <div className="mt-4 text-left"><ErrorNote>{pickerError}</ErrorNote></div>}
         </div> : <div className="flex-1 overflow-y-auto overscroll-contain p-5">
           {pickerError && <div className="mb-4"><ErrorNote>{pickerError}</ErrorNote></div>}
@@ -144,7 +144,7 @@ export function SelectionSection({ groupId, group, cycle, board, members, onChan
   </>
 }
 
-function PayoutSection({ groupId, cycleNumber, recipientName, poolAmountMinor, currency, onChanged, onError }: { groupId: string; cycleNumber: number; recipientName: string; poolAmountMinor: number; currency: string; onChanged: () => void; onError: (message: string) => void }) {
+function PayoutSection({ groupId, cycleNumber, recipientName, poolAmountMinor, onChanged, onError }: { groupId: string; cycleNumber: number; recipientName: string; poolAmountMinor: number; onChanged: () => void; onError: (message: string) => void }) {
   const { t } = useI18n()
   const [amount, setAmount] = useState(String(poolAmountMinor / 100))
   const [busy, setBusy] = useState(false)
@@ -154,7 +154,7 @@ function PayoutSection({ groupId, cycleNumber, recipientName, poolAmountMinor, c
     catch (error) { onError((error as Error).message) }
     finally { setBusy(false) }
   }
-  return <div className="mt-4 rounded-2xl border border-line bg-surface p-4"><div className="flex items-center gap-3"><HandCoins size={22} className="text-accent-strong dark:text-accent" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{t('dash.payoutNotice', { name: recipientName, amount: formatMinor(poolAmountMinor, currency) })}</p><p className="text-xs text-muted">{t('dash.payoutHint')}</p></div></div><Field label={t('dash.payoutAmountLabel')}><Input type="number" min={1} value={amount} onChange={(event) => setAmount(event.target.value)} /></Field><Button onClick={() => void record()} disabled={busy} className="mt-4 w-full">{busy ? t('dash.recording') : t('dash.recordPayout')}</Button></div>
+  return <div className="mt-4 rounded-2xl border border-line bg-surface p-4"><div className="flex items-center gap-3"><HandCoins size={22} className="text-accent-strong dark:text-accent" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{t('dash.payoutNotice', { name: recipientName, amount: formatMinor(poolAmountMinor) })}</p><p className="text-xs text-muted">{t('dash.payoutHint')}</p></div></div><Field label={t('dash.payoutAmountLabel')}><Input type="number" min={1} value={amount} onChange={(event) => setAmount(event.target.value)} /></Field><Button onClick={() => void record()} disabled={busy} className="mt-4 w-full">{busy ? t('dash.recording') : t('dash.recordPayout')}</Button></div>
 }
 
 export function AddMemberSection({ groupId, onAdded }: { groupId: string; onAdded: () => void }) {
@@ -174,10 +174,13 @@ export function AddMemberSection({ groupId, onAdded }: { groupId: string; onAdde
   }
 
   async function save() {
+    const trimmedName = name.trim()
+    if (!trimmedName) return
+
     setBusy(true)
     setError(null)
     try {
-      await callAddMember({ groupId, name, phone: `+91${phone}`, chitCount })
+      await callAddMember({ groupId, name: trimmedName, phone: `+91${phone}`, chitCount })
       setOpen(false)
       setName('')
       setPhone('')
@@ -201,6 +204,6 @@ export function AddMemberSection({ groupId, onAdded }: { groupId: string; onAdde
 
   return <>
     {!open && <Button variant="secondary" onClick={() => setOpen(true)} className="w-full">{t('dash.addMember')}</Button>}
-    {open && <form onSubmit={add} className="space-y-4 rounded-2xl border border-line bg-surface p-5"><h2 className="font-semibold">{t('dash.addMember')}</h2>{error && <ErrorNote>{error}</ErrorNote>}<Field label={t('dash.memberName')}><Input required value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label={t('dash.memberPhone')} hint={t('dash.memberPhoneHint')}><PhoneInput value={phone} onChange={setPhone} /></Field><fieldset><legend className="text-sm font-medium text-ink">{t('dash.chitCount')}</legend><div className="mt-2 grid w-36 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-xl border border-line bg-surface"><button type="button" onClick={() => changeChitCount(chitCount - 1)} disabled={chitCount === 1} aria-label={t('dash.decreaseChitCount')} className="grid h-10 place-items-center border-r border-line text-ink transition-colors hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Minus size={16} weight="bold" /></button><output aria-live="polite" className="grid h-10 place-items-center font-bold tabular-nums text-ink">{chitCount}</output><button type="button" onClick={() => changeChitCount(chitCount + 1)} disabled={chitCount === 100} aria-label={t('dash.increaseChitCount')} className="grid h-10 place-items-center border-l border-line text-ink transition-colors hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Plus size={16} weight="bold" /></button></div><span className="mt-1 block text-xs text-muted">{t('dash.chitCountHint')}</span></fieldset><div className="flex gap-3"><Button type="button" variant="secondary" onClick={() => setOpen(false)} className="flex-1">{t('common.cancel')}</Button><Button type="submit" disabled={busy || phone.length !== 10} className="flex-1">{busy ? t('common.adding') : t('common.add')}</Button></div></form>}
+    {open && <form onSubmit={add} className="space-y-4 rounded-2xl border border-line bg-surface p-5"><h2 className="font-semibold">{t('dash.addMember')}</h2>{error && <ErrorNote>{error}</ErrorNote>}<Field label={t('dash.memberName')}><Input required value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label={t('dash.memberPhone')} hint={t('dash.memberPhoneHint')}><PhoneInput value={phone} onChange={setPhone} /></Field><fieldset><legend className="text-sm font-medium text-ink">{t('dash.chitCount')}</legend><div className="mt-2 grid w-36 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-xl border border-line bg-surface"><button type="button" onClick={() => changeChitCount(chitCount - 1)} disabled={chitCount === 1} aria-label={t('dash.decreaseChitCount')} className="grid h-10 place-items-center border-r border-line text-ink transition-colors hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Minus size={16} weight="bold" /></button><output aria-live="polite" className="grid h-10 place-items-center font-bold tabular-nums text-ink">{chitCount}</output><button type="button" onClick={() => changeChitCount(chitCount + 1)} disabled={chitCount === 100} aria-label={t('dash.increaseChitCount')} className="grid h-10 place-items-center border-l border-line text-ink transition-colors hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Plus size={16} weight="bold" /></button></div><span className="mt-1 block text-xs text-muted">{t('dash.chitCountHint')}</span></fieldset><div className="flex gap-3"><Button type="button" variant="secondary" onClick={() => setOpen(false)} className="flex-1">{t('common.cancel')}</Button><Button type="submit" disabled={busy || !name.trim() || phone.length !== 10} className="flex-1">{busy ? t('common.adding') : t('common.add')}</Button></div></form>}
   </>
 }

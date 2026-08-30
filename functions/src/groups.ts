@@ -11,13 +11,13 @@ import {
 } from '@chitapp/shared'
 import type { BoardDoc, BoardEntry, CycleDoc, CycleFrequency, GroupDoc, GroupMemberDoc, MessageLogDoc, PaymentDoc, UserDoc } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
-import { syntheticEmail, assertAdminAccess, sendLoginAccessLink } from './auth.js'
+import { syntheticEmail, assertAdminAccess, groupAdminLanguage, sendLoginAccessLink } from './auth.js'
+import { writeUserMessage } from './messageLog.js'
 
 
 interface CreateGroupInput {
   name: string
-  contributionAmountMinor: number
-  currency: string
+  contributionAmountInPaise: number
   frequency: CycleFrequency
   cycleCount: number
   startDate: string
@@ -48,11 +48,11 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
   try {
     const uid = req.auth?.uid
     if (!uid) throw new AppError('unauthenticated')
-    await assertAdminAccess(req.auth)
+    const adminProfile = await assertAdminAccess(req.auth)
     const input = req.data as CreateGroupInput
 
     const name = String(input.name ?? '').trim()
-    const contributionAmountMinor = Math.floor(Number(input.contributionAmountMinor))
+    const contributionAmountInPaise = Math.floor(Number(input.contributionAmountInPaise))
     const frequency = input.frequency as CycleFrequency
     const cycleCount = Math.floor(Number(input.cycleCount))
     const startDate = String(input.startDate ?? '')
@@ -61,7 +61,7 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
     const showOtherMemberDues = showOtherMembers && input.showOtherMemberDues !== false
 
     if (!name) throw new AppError('invalid_argument', 'Group name is required.')
-    if (!(contributionAmountMinor > 0)) throw new AppError('invalid_argument', 'Invalid contribution.')
+    if (!(contributionAmountInPaise > 0)) throw new AppError('invalid_argument', 'Invalid contribution.')
     if (!['weekly', 'biweekly', 'monthly'].includes(frequency)) {
       throw new AppError('invalid_argument', 'Invalid cycle frequency.')
     }
@@ -77,10 +77,9 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
     }
 
     const group: GroupDoc = {
-      adminUid: uid,
+      ...(adminProfile.providerId ? { providerId: adminProfile.providerId } : { adminUid: uid }),
       name,
-      contributionAmountMinor,
-      currency: String(input.currency ?? 'INR'),
+      contributionAmountInPaise,
       frequency,
       cycleCount,
       startDate,
@@ -335,7 +334,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
         const boardRef = cycleRef.collection('board').doc('board')
         for (const { memberRef } of slots) {
           tx.set(cycleRef.collection('payments').doc(memberRef.id), {
-            amountMinor: currentGroup.contributionAmountMinor,
+            amountMinor: currentGroup.contributionAmountInPaise,
             status: 'pending',
             method: null,
             referenceNo: null,
@@ -363,8 +362,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
           groupId: input.groupId,
           groupName: group.name,
           membershipId: memberRef.id,
-          contributionAmountMinor: currentGroup.contributionAmountMinor,
-          currency: group.currency,
+          contributionAmountInPaise: currentGroup.contributionAmountInPaise,
           status: 'active',
           selectedInCycle: null,
           joinedAt: FieldValue.serverTimestamp(),
@@ -384,13 +382,9 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
     let providerMessageId: string | null = null
     let notificationError: string | null = null
     try {
-      const [userSnap, adminSnap] = await db.getAll(
-        db.doc(`users/${uid}`),
-        db.doc(`users/${group.adminUid}`),
-      )
+      const userSnap = await db.doc(`users/${uid}`).get()
       const user = userSnap.data() as UserDoc | undefined
-      const admin = adminSnap.data() as UserDoc | undefined
-      const language = resolveMessageLanguage(user?.language, admin?.language)
+      const language = resolveMessageLanguage(user?.language, await groupAdminLanguage(group, adminUid))
       const response = await sendLoginAccessLink(phone, name, language)
       providerMessageId = response.providerMessageId
       notificationSent = true
@@ -400,6 +394,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
     }
 
     const messageLog: MessageLogDoc = {
+      recipientUid: uid,
       groupId: input.groupId,
       template: 'login_access',
       toPhone: phone,
@@ -412,7 +407,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       updatedAt: FieldValue.serverTimestamp() as unknown as number,
     }
     try {
-      await db.collection(`groups/${input.groupId}/messages`).add(messageLog)
+      await writeUserMessage(messageLog)
     } catch (logError) {
       console.error('member access-link message log failed:', logError)
     }
@@ -503,8 +498,7 @@ export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'p
             groupId,
             groupName: group.name,
             membershipId: slot.ref.id,
-            contributionAmountMinor: group.contributionAmountMinor,
-            currency: group.currency,
+            contributionAmountInPaise: group.contributionAmountInPaise,
             status: 'active',
             selectedInCycle: null,
             joinedAt: FieldValue.serverTimestamp(),
@@ -514,7 +508,7 @@ export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'p
         for (const { cycleSnap, board } of activeCycles) {
           for (const slot of newSlots) {
             tx.set(cycleSnap.ref.collection('payments').doc(slot.ref.id), {
-              amountMinor: group.contributionAmountMinor,
+              amountMinor: group.contributionAmountInPaise,
               status: 'pending',
               method: null,
               referenceNo: null,
@@ -554,7 +548,7 @@ export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'p
         const activity = await Promise.all(activeCycles.map(async ({ cycleSnap }) => {
           const [paymentSnap, eventsSnap] = await Promise.all([
             tx.get(cycleSnap.ref.collection('payments').doc(candidate.id)),
-            tx.get(cycleSnap.ref.collection('paymentEvents').where('membershipId', '==', candidate.id).limit(1)),
+            tx.get(groupRef.collection('paymentEvents').where('membershipId', '==', candidate.id).limit(1)),
           ])
           const payment = paymentSnap.data() as PaymentDoc | undefined
           return Boolean((payment && payment.status === 'paid') || !eventsSnap.empty)

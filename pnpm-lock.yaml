@@ -79,9 +79,6 @@ importers:
         specifier: ^6.1.0
         version: 6.6.0(firebase-admin@12.7.0(supports-color@8.1.1))(supports-color@8.1.1)
     devDependencies:
-      '@chitapp/shared':
-        specifier: workspace:*
-        version: link:../shared
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2

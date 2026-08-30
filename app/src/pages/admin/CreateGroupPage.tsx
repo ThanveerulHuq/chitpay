@@ -31,8 +31,7 @@ export default function CreateGroupPage() {
     try {
       const groupId = await callCreateGroup({
         name,
-        contributionAmountMinor: toMinor(Number(amount)),
-        currency: 'INR',
+        contributionAmountInPaise: toMinor(Number(amount)),
         frequency,
         cycleCount: Number(cycleCount),
         startDate,

@@ -5,7 +5,26 @@ export interface UserDoc {
   name: string
   phone: string
   roles: Role[]
+  providerId?: string
   language?: Lang
+  lastLoginAt?: number
+  createdAt: number
+}
+
+export type ProviderStatus = 'active' | 'inactive'
+
+export interface ProviderDoc {
+  name: string
+  language: Lang
+  status: ProviderStatus
+  createdBy: string
+  createdAt: number
+  updatedAt?: number
+}
+
+export interface ProviderAdminDoc {
+  uid: string
+  addedBy: string
   createdAt: number
 }
 
@@ -15,10 +34,12 @@ export type PaymentMethod = 'cash' | 'upi' | 'bank_transfer' | 'other'
 export type CycleFrequency = 'weekly' | 'biweekly' | 'monthly'
 
 export interface GroupDoc {
-  adminUid: string
+  /** Canonical ownership field for migrated groups. */
+  providerId?: string
+  /** Temporary compatibility field removed after the provider migration. */
+  adminUid?: string
   name: string
-  contributionAmountMinor: number
-  currency: string
+  contributionAmountInPaise: number
   frequency: CycleFrequency
   cycleCount: number
   startDate: string // YYYY-MM-DD
@@ -127,8 +148,7 @@ export interface MembershipMirrorDoc {
   groupId: string
   groupName: string
   membershipId: string
-  contributionAmountMinor: number
-  currency: string
+  contributionAmountInPaise: number
   status: MemberSlotStatus
   selectedInCycle: number | null
   joinedAt: number
@@ -159,7 +179,8 @@ export type MessageTemplate =
 export type MessageStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed'
 
 export interface MessageLogDoc {
-  groupId: string
+  recipientUid: string
+  groupId: string | null
   cycleNumber?: number
   cycleNumbers?: number[]
   template: MessageTemplate

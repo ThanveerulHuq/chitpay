@@ -2,6 +2,9 @@
   "compilerOptions": {
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    "paths": {
+      "@chitapp/shared": ["../shared/dist/index.d.ts"]
+    },
     "lib": ["ES2022"],
     "target": "ES2022",
     "outDir": "lib",

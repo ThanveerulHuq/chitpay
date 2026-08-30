@@ -9,8 +9,8 @@ import { useT } from '@/i18n'
 import { groupPath, groupsPath, settingsPath, useExperience } from '@/lib/roleRoutes'
 
 type ListEntry =
-  | { kind: 'admin'; id: string; name: string; amountMinor: number; currency: string; memberCount: number; completedCycleCount: number; cycleCount: number }
-  | { kind: 'member'; id: string; name: string; amountMinor: number; currency: string }
+  | { kind: 'admin'; id: string; name: string; amountInPaise: number; memberCount: number; completedCycleCount: number; cycleCount: number }
+  | { kind: 'member'; id: string; name: string; amountInPaise: number }
 
 export default function GroupsListPage() {
   const t = useT()
@@ -31,8 +31,7 @@ export default function GroupsListPage() {
         kind: 'admin',
         id,
         name: g.name,
-        amountMinor: g.contributionAmountMinor,
-        currency: g.currency,
+        amountInPaise: g.contributionAmountInPaise,
         memberCount: g.memberCount,
         completedCycleCount: g.completedCycleCount,
         cycleCount: g.cycleCount,
@@ -42,8 +41,7 @@ export default function GroupsListPage() {
           kind: 'member',
           id: m.data.groupId,
           name: m.data.groupName,
-          amountMinor: m.data.contributionAmountMinor,
-          currency: m.data.currency,
+          amountInPaise: m.data.contributionAmountInPaise,
         }))
 
       setAllEntries([...adminEntries, ...memberEntries])
@@ -116,7 +114,7 @@ export default function GroupsListPage() {
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 className="truncate font-semibold">{entry.name}</h2>
                   <span className="shrink-0 text-sm text-muted">
-                    {formatMinor(entry.amountMinor, entry.currency)}
+                    {formatMinor(entry.amountInPaise)}
                   </span>
                 </div>
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
@@ -132,7 +130,7 @@ export default function GroupsListPage() {
                     </span>
                     <span className="ml-auto inline-flex items-center gap-1 font-medium text-ink">
                       <CurrencyInr size={13} weight="bold" />
-                      {formatMinor(entry.amountMinor * entry.memberCount * entry.completedCycleCount, entry.currency)}
+                      {formatMinor(entry.amountInPaise * entry.memberCount * entry.completedCycleCount)}
                     </span>
                   </>
                 ) : (
@@ -155,7 +153,7 @@ function AdminKpiStrip({ entries }: { entries: ListEntry[] }) {
 
   const shares = adminEntries.reduce((sum, g) => sum + g.memberCount, 0)
   const monthlyPool = adminEntries.reduce(
-    (sum, g) => sum + g.amountMinor * g.memberCount,
+    (sum, g) => sum + g.amountInPaise * g.memberCount,
     0,
   )
 
@@ -172,7 +170,7 @@ function AdminKpiStrip({ entries }: { entries: ListEntry[] }) {
       <div className="px-2 py-3">
         <dt className="text-[11px] uppercase tracking-wide text-faint">{t('groups.kpiMonthlyPool')}</dt>
         <dd className="mt-0.5 truncate text-sm font-bold tabular-nums">
-          {formatMinor(monthlyPool, adminEntries[0]!.currency)}
+          {formatMinor(monthlyPool)}
         </dd>
       </div>
     </dl>

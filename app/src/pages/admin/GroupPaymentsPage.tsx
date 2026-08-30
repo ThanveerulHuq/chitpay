@@ -71,12 +71,12 @@ export default function GroupPaymentsPage() {
       <p className="mt-4 text-sm text-muted">
         {t('payments.total')}:{' '}
         <span className="font-semibold tabular-nums text-ink">
-          {formatMinor(totalMinor, group.data.currency)}
+          {formatMinor(totalMinor)}
         </span>
       </p>
 
       <div className="mt-4">
-        <PaymentHistoryList records={visible} currency={group.data.currency} showMember />
+        <PaymentHistoryList records={visible} showMember />
       </div>
     </Page>
   )

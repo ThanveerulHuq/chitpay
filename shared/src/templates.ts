@@ -5,7 +5,6 @@ export interface TemplateVars {
   memberName: string
   groupName: string
   amountMinor: number
-  currency: string
   poolAmountMinor?: number
   pendingCycles?: number[]
   loginCode?: string
@@ -31,7 +30,7 @@ export function renderMessage(
   v: TemplateVars,
   lang: Lang = 'en',
 ): string {
-  const amount = formatMinor(v.amountMinor, v.currency)
+  const amount = formatMinor(v.amountMinor)
   if (lang === 'ta') {
     switch (template) {
       case 'login_code':
@@ -56,7 +55,7 @@ export function renderMessage(
         )
       }
       case 'recipient_notification': {
-        const pool = formatMinor(v.poolAmountMinor ?? v.amountMinor, v.currency)
+        const pool = formatMinor(v.poolAmountMinor ?? v.amountMinor)
         return (
           `வாழ்த்துகள் ${v.memberName}! ${v.groupName} குழுவில் இந்த சுற்றுக்கான ` +
           `${pool} சீட்டுத் தொகை உங்களுக்குக் கிடைத்துள்ளது.`
@@ -93,7 +92,7 @@ export function renderMessage(
       )
     }
     case 'recipient_notification': {
-      const pool = formatMinor(v.poolAmountMinor ?? v.amountMinor, v.currency)
+      const pool = formatMinor(v.poolAmountMinor ?? v.amountMinor)
       return (
         `Congratulations ${v.memberName}! You have been selected as this cycle's ` +
         `recipient for ${pool} in ${v.groupName}.`

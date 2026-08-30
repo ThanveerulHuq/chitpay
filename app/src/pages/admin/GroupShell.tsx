@@ -227,7 +227,7 @@ export default function GroupShell({ children }: { children: ReactNode }) {
           <p className="pb-2 text-sm text-muted">
             {t('workspace.contribution')}{' '}
             <strong className="font-bold text-ink tabular-nums">
-              {formatMinor(group.data.contributionAmountMinor, group.data.currency)}
+              {formatMinor(group.data.contributionAmountInPaise)}
             </strong>
           </p>
           {!isReportsPage && (

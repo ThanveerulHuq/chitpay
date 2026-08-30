@@ -9,15 +9,15 @@ export function fromMinor(minor: number): number {
   return minor / 100
 }
 
-export function formatMinor(minor: number, currency = 'INR'): string {
+export function formatMinor(minor: number): string {
   const major = minor / 100
   try {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency,
+      currency: 'INR',
       maximumFractionDigits: minor % 100 === 0 ? 0 : 2,
     }).format(major)
   } catch {
-    return `${currency} ${major.toFixed(2)}`
+    return `INR ${major.toFixed(2)}`
   }
 }

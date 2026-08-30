@@ -12,14 +12,15 @@ import type {
   PaymentEventDoc,
   PaymentMethod,
   Lang,
+  ProviderDoc,
+  UserDoc,
 } from '@shared'
 import { functions, db } from './firebase'
 import { auth } from './firebase'
 
 export async function callCreateGroup(input: {
   name: string
-  contributionAmountMinor: number
-  currency: string
+  contributionAmountInPaise: number
   frequency: CycleFrequency
   cycleCount: number
   startDate: string
@@ -136,10 +137,50 @@ export async function callUpdateOwnLanguage(language: Lang): Promise<void> {
   await call({ language })
 }
 
+export interface ProviderAdminSummary {
+  uid: string
+  name: string
+  phone: string
+  isCurrentUser: boolean
+}
+
+export interface MyProvider {
+  providerId: string
+  provider: ProviderDoc
+  admins: ProviderAdminSummary[]
+}
+
+export async function callGetMyProvider(): Promise<MyProvider> {
+  const call = httpsCallable<Record<string, never>, MyProvider>(functions, 'getMyProvider')
+  const res = await call({})
+  return res.data
+}
+
+export async function callUpdateProviderName(name: string): Promise<void> {
+  const call = httpsCallable<{ name: string }, { ok: boolean }>(functions, 'updateProviderName')
+  await call({ name })
+}
+
+export async function callAddProviderAdmin(input: { name: string; phone: string }): Promise<{ notificationSent: boolean }> {
+  const call = httpsCallable<typeof input, { uid: string; notificationSent: boolean }>(functions, 'addProviderAdmin')
+  const res = await call(input)
+  return { notificationSent: res.data.notificationSent }
+}
+
+export async function callRemoveProviderAdmin(uid: string): Promise<{ removedSelf: boolean }> {
+  const call = httpsCallable<{ uid: string }, { ok: boolean; removedSelf: boolean }>(functions, 'removeProviderAdmin')
+  const res = await call({ uid })
+  return { removedSelf: res.data.removedSelf }
+}
+
 export async function fetchMyGroups(): Promise<{ id: string; data: GroupDoc }[]> {
   const user = auth.currentUser
   if (!user) return []
-  const q = query(collection(db, 'groups'), where('adminUid', '==', user.uid))
+  const profileSnap = await getDoc(doc(db, 'users', user.uid))
+  const profile = profileSnap.data() as UserDoc | undefined
+  const q = profile?.providerId
+    ? query(collection(db, 'groups'), where('providerId', '==', profile.providerId))
+    : query(collection(db, 'groups'), where('adminUid', '==', user.uid))
 
   const snap = await getDocs(q)
   return snap.docs.map((d) => ({ id: d.id, data: d.data() as GroupDoc }))
@@ -366,14 +407,12 @@ export async function fetchGroupPaymentLedger(
 ): Promise<PaymentLedgerRecord[]> {
   const wanted = membershipIds ? new Set(membershipIds) : null
   const cycles = await fetchCycles(groupId)
-  const perCycle = await Promise.all(
+  const [perCycle, eventsSnap] = await Promise.all([
+    Promise.all(
     cycles.map(async ({ id }) => {
       const cycleNumber = Number(id)
       const cycleRef = doc(db, 'groups', groupId, 'cycles', id)
-      const [paymentsSnap, eventsSnap] = await Promise.all([
-        getDocs(collection(cycleRef, 'payments')),
-        getDocs(collection(cycleRef, 'paymentEvents')),
-      ])
+      const paymentsSnap = await getDocs(collection(cycleRef, 'payments'))
       const records: PaymentLedgerRecord[] = []
       for (const paymentDoc of paymentsSnap.docs) {
         const payment = paymentDoc.data() as PaymentDoc
@@ -389,27 +428,29 @@ export async function fetchGroupPaymentLedger(
           status: 'paid',
         })
       }
-      for (const eventDoc of eventsSnap.docs) {
-        const event = eventDoc.data() as PaymentEventDoc
-        if (event.type !== 'reversed' || (wanted && !wanted.has(event.membershipId))) continue
-        const before = event.before
-        records.push({
-          cycleNumber,
-          membershipId: event.membershipId,
-          amountMinor: before?.amountMinor ?? 0,
-          method: before?.method ?? null,
-          referenceNo: before?.referenceNo ?? null,
-          note: before?.note ?? null,
-          paidAtMs: toMillis(before?.paidAt),
-          status: 'reversed',
-          eventId: eventDoc.id,
-          reason: event.reason,
-        })
-      }
       return records
     }),
-  )
-  return perCycle.flat().sort((a, b) => (b.paidAtMs ?? 0) - (a.paidAtMs ?? 0))
+    ),
+    getDocs(collection(db, 'groups', groupId, 'paymentEvents')),
+  ])
+  const reversed = eventsSnap.docs.flatMap((eventDoc): PaymentLedgerRecord[] => {
+    const event = eventDoc.data() as PaymentEventDoc
+    if (event.type !== 'reversed' || (wanted && !wanted.has(event.membershipId))) return []
+    const before = event.before
+    return [{
+      cycleNumber: event.cycleNumber,
+      membershipId: event.membershipId,
+      amountMinor: before?.amountMinor ?? 0,
+      method: before?.method ?? null,
+      referenceNo: before?.referenceNo ?? null,
+      note: before?.note ?? null,
+      paidAtMs: toMillis(before?.paidAt),
+      status: 'reversed',
+      eventId: eventDoc.id,
+      reason: event.reason,
+    }]
+  })
+  return [...perCycle.flat(), ...reversed].sort((a, b) => (b.paidAtMs ?? 0) - (a.paidAtMs ?? 0))
 }
 
 export function filterPaymentsByRange<T extends { paidAtMs: number | null }>(

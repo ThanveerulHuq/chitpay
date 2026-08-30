@@ -1,6 +1,8 @@
 import { onCall } from 'firebase-functions/v2/https'
-import { AppError, type Lang } from '@chitapp/shared'
+import { AppError, type Lang, type UserDoc } from '@chitapp/shared'
+import { FieldValue } from 'firebase-admin/firestore'
 import { db } from './firebaseAdmin.js'
+import { assertProviderAdmin } from './auth.js'
 import { toHttpsError } from './httpsError.js'
 
 interface UpdateOwnLanguageInput {
@@ -16,7 +18,20 @@ export const updateOwnLanguage = onCall({ region: 'asia-south1', invoker: 'publi
       throw new AppError('invalid_argument', 'Choose English or Tamil.')
     }
 
-    await db.doc(`users/${uid}`).set({ language }, { merge: true })
+    const userRef = db.doc(`users/${uid}`)
+    const userSnap = await userRef.get()
+    const profile = userSnap.data() as UserDoc | undefined
+    if (!userSnap.exists || !profile) throw new AppError('not_found')
+
+    if (profile.providerId && profile.roles.includes('admin')) {
+      await assertProviderAdmin(req.auth, profile.providerId)
+      await db.doc(`providers/${profile.providerId}`).update({
+        language,
+        updatedAt: FieldValue.serverTimestamp(),
+      })
+    } else {
+      await userRef.set({ language }, { merge: true })
+    }
     return { ok: true }
   } catch (error) {
     throw toHttpsError(error, { fn: 'updateOwnLanguage', uid: req.auth?.uid, data: req.data })

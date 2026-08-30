@@ -12,8 +12,9 @@ import {
   type UserDoc,
 } from '@chitapp/shared'
 import { auth, db } from './firebaseAdmin.js'
-import { assertAdminAccess, sendLoginAccessLink, syntheticEmail } from './auth.js'
+import { assertAdminAccess, groupAdminLanguage, sendLoginAccessLink, syntheticEmail } from './auth.js'
 import { toHttpsError } from './httpsError.js'
+import { writeUserMessage } from './messageLog.js'
 
 interface ManagedGroupSummary {
   groupId: string
@@ -80,7 +81,10 @@ function isAuthEmailInUse(error: unknown): boolean {
 }
 
 async function ownedGroups(adminUid: string): Promise<Map<string, GroupDoc>> {
-  const snap = await db.collection('groups').where('adminUid', '==', adminUid).get()
+  const profile = (await db.doc(`users/${adminUid}`).get()).data() as UserDoc | undefined
+  const field = profile?.providerId ? 'providerId' : 'adminUid'
+  const value = profile?.providerId ?? adminUid
+  const snap = await db.collection('groups').where(field, '==', value).get()
   return new Map(snap.docs.map((doc) => [doc.id, doc.data() as GroupDoc]))
 }
 
@@ -293,8 +297,11 @@ export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoke
     let notificationError: string | null = null
     if (update.phoneChanged) {
       try {
-        const adminProfile = (await db.doc(`users/${adminUid}`).get()).data() as UserDoc | undefined
-        const language = resolveMessageLanguage(update.language, adminProfile?.language)
+        const group = (await db.doc(`groups/${anchor.groupId}`).get()).data() as GroupDoc | undefined
+        const language = resolveMessageLanguage(
+          update.language,
+          group ? await groupAdminLanguage(group, adminUid) : undefined,
+        )
         const response = await sendLoginAccessLink(update.phone, name, language)
         providerMessageId = response.providerMessageId
         notificationSent = true
@@ -304,6 +311,7 @@ export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoke
       }
 
       const log: MessageLogDoc = {
+        recipientUid: uid,
         groupId: anchor.groupId,
         template: 'login_access',
         toPhone: update.phone,
@@ -316,7 +324,7 @@ export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoke
         updatedAt: FieldValue.serverTimestamp() as unknown as number,
       }
       try {
-        await db.collection(`groups/${anchor.groupId}/messages`).add(log)
+        await writeUserMessage(log)
       } catch (error) {
         console.error('updated member access-link message log failed:', error)
       }

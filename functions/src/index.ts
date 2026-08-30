@@ -3,10 +3,12 @@ export {
   requestLoginLink,
   requestOtp,
   verifyOtp,
+  recordLogin,
 } from './auth.js'
 export { createGroup, updateGroupSettings, addMember, updateMemberChitCount, archiveGroup, unarchiveGroup } from './groups.js'
 export { listManagedMembers, updateManagedMemberProfile, updateOwnName } from './memberProfiles.js'
 export { updateOwnLanguage } from './preferences.js'
+export { getMyProvider, updateProviderName, addProviderAdmin, removeProviderAdmin } from './providers.js'
 export { startCycle, markPaid, editPayment, reversePayment, sendReminder, sendMemberReminder } from './cycles.js'
 export { backfillFinancialSummaries } from './backfill.js'
 export { confirmSelection } from './selection.js'

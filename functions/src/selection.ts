@@ -17,8 +17,9 @@ import type {
   UserDoc,
 } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
-import { assertAdminAccess } from './auth.js'
+import { assertAdminAccess, groupAdminLanguage } from './auth.js'
 import { messaging } from './messaging.js'
+import { writeUserMessage } from './messageLog.js'
 
 
 interface ConfirmSelectionInput {
@@ -44,7 +45,6 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
     let notifiedName = ''
     let notifiedUid = ''
     let groupName = ''
-    let currency = 'INR'
 
     await db.runTransaction(async (tx) => {
       const groupRef = db.doc(`groups/${groupId}`)
@@ -98,7 +98,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         throw new AppError('invalid_argument')
       }
 
-      poolAmountMinor = group.contributionAmountMinor * Math.max(cycle.expectedPaymentCount, 1)
+      poolAmountMinor = group.contributionAmountInPaise * Math.max(cycle.expectedPaymentCount, 1)
 
       const now = FieldValue.serverTimestamp() as unknown as number
 
@@ -125,31 +125,30 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         poolAmountMinor,
         selectedAt: now,
       }
-      tx.create(db.collection('selections').doc(), audit)
+      tx.create(groupRef.collection('selections').doc(), audit)
 
       notifiedName = member.displayName
       notifiedUid = member.uid
       groupName = group.name
-      currency = group.currency
     })
 
     // Best-effort recipient notification after the transaction commits.
     try {
-      const [userSnap, adminSnap] = await db.getAll(
-        db.doc(`users/${notifiedUid}`),
-        db.doc(`users/${uid}`),
-      )
+      const userSnap = await db.doc(`users/${notifiedUid}`).get()
       const user = userSnap.data() as UserDoc | undefined
-      const admin = adminSnap.data() as UserDoc | undefined
       if (user?.phone) {
         let error: string | null = null
         let providerMessageId: string | null = null
         try {
-          const language = resolveMessageLanguage(user.language, admin?.language)
+          const group = (await db.doc(`groups/${groupId}`).get()).data() as GroupDoc | undefined
+          const language = resolveMessageLanguage(
+            user.language,
+            group ? await groupAdminLanguage(group, uid) : undefined,
+          )
           const res = await messaging.sendTemplate(user.phone, 'recipient_notification', {
             member_name: notifiedName,
             group_name: groupName,
-            payout_amount: formatMinor(poolAmountMinor, currency),
+            payout_amount: formatMinor(poolAmountMinor),
             group_id: groupId,
           }, language)
           providerMessageId = res.providerMessageId
@@ -157,6 +156,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
           error = e instanceof Error ? e.message : String(e)
         }
         const log: MessageLogDoc = {
+          recipientUid: notifiedUid,
           groupId,
           cycleNumber,
           template: 'recipient_notification',
@@ -169,7 +169,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
           createdAt: FieldValue.serverTimestamp() as unknown as number,
           updatedAt: FieldValue.serverTimestamp() as unknown as number,
         }
-        await db.doc(`groups/${groupId}`).collection('messages').add(log)
+        await writeUserMessage(log)
       }
     } catch (e) {
       console.error('recipient notification failed:', e)

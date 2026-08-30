@@ -8,7 +8,8 @@ import {
 } from 'react'
 import { useAuth } from '@/lib/useAuth'
 import { callUpdateOwnLanguage } from '@/lib/api'
-import { auth } from '@/lib/firebase'
+import { auth, db } from '@/lib/firebase'
+import { doc, onSnapshot } from 'firebase/firestore'
 import type { Lang, TranslationKey } from './types'
 import { en } from './en'
 import { ta } from './ta'
@@ -42,18 +43,30 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const { user, profile } = useAuth()
   const [lang, setLangState] = useState<Lang>(() => getInitialLang())
 
-  // Sync with user's Firestore profile if available
+  // Admins share their provider language; members keep a personal preference.
   const profileLang = profile?.language
+  const providerId = profile?.roles.includes('admin') ? profile.providerId : undefined
   useEffect(() => {
-    if (profileLang) {
-      setLangState(profileLang)
+    const applyLanguage = (nextLang: Lang | undefined) => {
+      if (!nextLang) return
+      setLangState(nextLang)
       try {
-        localStorage.setItem(STORAGE_KEY, profileLang)
+        localStorage.setItem(STORAGE_KEY, nextLang)
       } catch {
         // ignore storage errors
       }
     }
-  }, [profileLang])
+
+    if (!providerId) {
+      applyLanguage(profileLang)
+      return
+    }
+    return onSnapshot(
+      doc(db, 'providers', providerId),
+      (snapshot) => applyLanguage((snapshot.data()?.language as Lang | undefined) ?? profileLang),
+      () => applyLanguage(profileLang),
+    )
+  }, [profileLang, providerId])
 
   // Update <html lang="..."> attribute reactively
   useEffect(() => {
@@ -69,7 +82,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         // ignore
       }
 
-      // Persist to user profile if logged in
+      // The callable writes provider language for admins and personal language for members.
       const currentUid = user?.uid ?? auth.currentUser?.uid
       if (currentUid) {
         try {

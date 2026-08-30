@@ -23,8 +23,9 @@ import type {
   UserDoc,
 } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
-import { assertAdminAccess } from './auth.js'
+import { assertAdminAccess, groupAdminLanguage } from './auth.js'
 import { messaging } from './messaging.js'
+import { writeUserMessage } from './messageLog.js'
 
 
 const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'upi', 'bank_transfer', 'other']
@@ -100,7 +101,7 @@ export const startCycle = onCall({ region: 'asia-south1', invoker: 'public' }, a
       const entries = membersSnap.docs.map((m) => {
         const member = m.data() as GroupMemberDoc
         tx.set(cycleRef.collection('payments').doc(m.id), {
-          amountMinor: group.contributionAmountMinor,
+          amountMinor: group.contributionAmountInPaise,
           status: 'pending',
           method: null,
           referenceNo: null,
@@ -199,7 +200,7 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
 
       const now = FieldValue.serverTimestamp() as unknown as number
       const nextPayment: PaymentDoc = {
-        amountMinor: group.contributionAmountMinor,
+        amountMinor: group.contributionAmountInPaise,
         status: 'paid',
         method,
         referenceNo: input.referenceNo?.trim() || null,
@@ -220,12 +221,12 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
       }
 
       tx.update(memberRef, {
-        totalContributedMinor: FieldValue.increment(group.contributionAmountMinor),
+        totalContributedMinor: FieldValue.increment(group.contributionAmountInPaise),
         paidCycleCount: FieldValue.increment(1),
       })
       tx.update(cycleRef, {
         paidCount: FieldValue.increment(1),
-        collectedAmountMinor: FieldValue.increment(group.contributionAmountMinor),
+        collectedAmountMinor: FieldValue.increment(group.contributionAmountInPaise),
       })
       const event: PaymentEventDoc = {
         groupId: input.groupId,
@@ -238,7 +239,7 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
         performedBy: uid,
         createdAt: now,
       }
-      tx.set(cycleRef.collection('paymentEvents').doc(), event)
+      tx.set(groupRef.collection('paymentEvents').doc(), event)
 
     })
 
@@ -285,7 +286,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
     if (!board) throw new AppError('not_found')
 
     const template = 'pending_payments_reminder'
-    const admin = (await db.doc(`users/${group.adminUid}`).get()).data() as UserDoc | undefined
+    const adminLanguage = await groupAdminLanguage(group, uid)
 
     let targets = board.entries.filter((e) => e.status === 'pending')
     if (membershipId) targets = targets.filter((e) => e.membershipId === membershipId)
@@ -303,12 +304,12 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
       let error: string | null = null
       let providerMessageId: string | null = null
       try {
-        const language = resolveMessageLanguage(user.language, admin?.language)
+        const language = resolveMessageLanguage(user.language, adminLanguage)
         const res = await messaging.sendTemplate(user.phone, template, {
           member_name: member.displayName,
           group_name: group.name,
           pending_cycles: String(n),
-          total_due: formatMinor(group.contributionAmountMinor, group.currency),
+          total_due: formatMinor(group.contributionAmountInPaise),
           group_id: groupId,
         }, language)
         providerMessageId = res.providerMessageId
@@ -318,6 +319,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
       }
 
       const log: MessageLogDoc = {
+        recipientUid: member.uid,
         groupId,
         cycleNumber: n,
         template,
@@ -330,7 +332,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
         createdAt: FieldValue.serverTimestamp() as unknown as number,
         updatedAt: FieldValue.serverTimestamp() as unknown as number,
       }
-      await groupRef.collection('messages').add(log)
+      await writeUserMessage(log)
     }
 
     return { sent, total: targets.length }
@@ -386,24 +388,20 @@ export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'publ
       return { sent: 0, pendingCycleCount: 0, cycleNumbers, totalDueMinor }
     }
 
-    const [userSnap, adminSnap] = await db.getAll(
-      db.doc(`users/${member.uid}`),
-      db.doc(`users/${group.adminUid}`),
-    )
+    const userSnap = await db.doc(`users/${member.uid}`).get()
     const user = userSnap.data() as UserDoc | undefined
-    const admin = adminSnap.data() as UserDoc | undefined
     if (!user?.phone) throw new AppError('not_found', 'This member has no phone number.')
 
     const template = 'pending_payments_reminder' as const
     let error: string | null = null
     let providerMessageId: string | null = null
     try {
-      const language = resolveMessageLanguage(user.language, admin?.language)
+      const language = resolveMessageLanguage(user.language, await groupAdminLanguage(group, uid))
       const res = await messaging.sendTemplate(user.phone, template, {
         member_name: member.displayName,
         group_name: group.name,
         pending_cycles: cycleNumbers.join(', '),
-        total_due: formatMinor(totalDueMinor, group.currency),
+        total_due: formatMinor(totalDueMinor),
         group_id: groupId,
       }, language)
       providerMessageId = res.providerMessageId
@@ -412,6 +410,7 @@ export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'publ
     }
 
     const log: MessageLogDoc = {
+      recipientUid: member.uid,
       groupId,
       cycleNumber: cycleNumbers[0],
       cycleNumbers,
@@ -425,7 +424,7 @@ export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'publ
       createdAt: FieldValue.serverTimestamp() as unknown as number,
       updatedAt: FieldValue.serverTimestamp() as unknown as number,
     }
-    await groupRef.collection('messages').add(log)
+    await writeUserMessage(log)
 
     return {
       sent: error ? 0 : 1,
@@ -512,7 +511,7 @@ export const editPayment = onCall({ region: 'asia-south1', invoker: 'public' }, 
         performedBy: uid,
         createdAt: now,
       }
-      tx.set(cycleRef.collection('paymentEvents').doc(), event)
+      tx.set(groupRef.collection('paymentEvents').doc(), event)
     })
     return { ok: true }
   } catch (err) {
@@ -606,7 +605,7 @@ export const reversePayment = onCall({ region: 'asia-south1', invoker: 'public' 
         performedBy: uid,
         createdAt: now,
       }
-      tx.set(cycleRef.collection('paymentEvents').doc(), event)
+      tx.set(groupRef.collection('paymentEvents').doc(), event)
     })
     return { ok: true }
   } catch (err) {

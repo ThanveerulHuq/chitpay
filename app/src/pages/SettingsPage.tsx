@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Archive, CaretRight, CheckCircle, Globe, PencilSimple, ShieldStar, SignOut, User, UsersThree } from '@phosphor-icons/react'
+import { Archive, Buildings, CaretRight, CheckCircle, Globe, PencilSimple, ShieldStar, SignOut, User, UsersThree } from '@phosphor-icons/react'
 import { Page, PageHeader, Button, ErrorNote, Field, Input } from '@/components/ui'
 import { useAuth } from '@/lib/useAuth'
 import { callUpdateOwnName } from '@/lib/api'
@@ -59,7 +59,7 @@ export default function SettingsPage() {
               {t('settings.language')}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              {t('settings.languageDesc')}
+              {isAdmin && experience === 'admin' ? t('settings.providerLanguageDesc') : t('settings.languageDesc')}
             </p>
           </div>
 
@@ -162,6 +162,18 @@ export default function SettingsPage() {
 
         {isAdmin && experience === 'admin' && (
           <section className="space-y-3">
+            {profile?.providerId && (
+              <Link to={`${settingsPath(experience)}/provider`} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors hover:bg-sunken">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sunken text-muted">
+                  <Buildings size={20} weight="bold" />
+                </div>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-ink">{t('provider.title')}</span>
+                  <span className="mt-0.5 block text-xs text-muted">{t('provider.settingsHint')}</span>
+                </span>
+                <CaretRight size={18} className="shrink-0 text-faint" />
+              </Link>
+            )}
             <Link to={`${settingsPath(experience)}/members`} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors hover:bg-sunken">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sunken text-muted">
                 <UsersThree size={20} weight="bold" />

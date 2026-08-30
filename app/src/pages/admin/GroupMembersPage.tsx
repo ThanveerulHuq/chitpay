@@ -148,7 +148,7 @@ function MembersContent() {
             }, 0)
             const pendingCycles = [...new Set(person.slots.flatMap((slot) => pendingByMember.get(slot.id) ?? []))].sort((a, b) => a - b)
             const pendingPaymentCount = person.slots.reduce((sum, slot) => sum + (pendingByMember.get(slot.id)?.length ?? 0), 0)
-            const totalPending = pendingPaymentCount * group.contributionAmountMinor
+            const totalPending = pendingPaymentCount * group.contributionAmountInPaise
             return (
               <li key={person.uid} className="flex items-center gap-3 py-3.5">
                 <div className="min-w-0 flex-1">
@@ -158,11 +158,11 @@ function MembersContent() {
                     {person.slots.some((slot) => slot.data.selectedInCycle != null) && <Chip tone="paid">{t('workspace.selected')}</Chip>}
                   </div>
                   {canSeeDues && <p className="mt-1 text-xs text-muted">
-                    {formatMinor(total, group.currency)} · {t('workspace.paidChitPayments', { paid: paidPayments, total: group.cycleCount * person.slots.length })}
+                    {formatMinor(total)} · {t('workspace.paidChitPayments', { paid: paidPayments, total: group.cycleCount * person.slots.length })}
                   </p>}
                   {canSeeDues && pendingPaymentCount > 0 && (
                     <p className="mt-1 text-xs font-medium text-ink">
-                      {t('workspace.totalPending', { amount: formatMinor(totalPending, group.currency) })}
+                      {t('workspace.totalPending', { amount: formatMinor(totalPending) })}
                     </p>
                   )}
                 </div>

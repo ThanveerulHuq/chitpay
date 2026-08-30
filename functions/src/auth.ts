@@ -4,15 +4,17 @@ import { FieldValue, type Transaction } from 'firebase-admin/firestore'
 import {
   AppError,
   type Lang,
+  type MessageLogDoc,
   OTP_TTL_MS,
   normalizePhone,
 } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
 import { messaging } from './messaging.js'
+import { writeUserMessage } from './messageLog.js'
 import { assertOtpSendable, generateOtpCode, hashOtpCode, verifyOtpDoc } from './otp.js'
 
 
-import type { GroupDoc, UserDoc } from '@chitapp/shared'
+import type { GroupDoc, ProviderDoc, UserDoc } from '@chitapp/shared'
 
 const LOGIN_LINK_SEND_COOLDOWN_MS = 60 * 1000
 
@@ -35,11 +37,10 @@ export async function sendLoginAccessLink(
   return messaging.sendTemplate(phone, 'login_access', { name, id: loginLinkId }, language)
 }
 
-export async function assertAdminAccess(
+async function adminProfile(
   requestAuth: { uid: string } | undefined,
-  group?: GroupDoc | { adminUid: string },
   transaction?: Transaction,
-): Promise<void> {
+): Promise<UserDoc> {
   if (!requestAuth) throw new AppError('unauthenticated')
   const profileRef = db.doc(`users/${requestAuth.uid}`)
   const profileSnap = transaction
@@ -49,9 +50,54 @@ export async function assertAdminAccess(
   const isAdminRole = profileSnap.exists
     && Array.isArray(profile?.roles)
     && profile.roles.includes('admin')
-  if (!isAdminRole || (group && group.adminUid !== requestAuth.uid)) {
+  if (!isAdminRole || !profile) throw new AppError('permission_denied')
+  return profile
+}
+
+export async function assertProviderAdmin(
+  requestAuth: { uid: string } | undefined,
+  providerId: string,
+  transaction?: Transaction,
+): Promise<UserDoc> {
+  const profile = await adminProfile(requestAuth, transaction)
+  if (!requestAuth || profile.providerId !== providerId) throw new AppError('permission_denied')
+  const membershipRef = db.doc(`providers/${providerId}/admins/${requestAuth.uid}`)
+  const providerRef = db.doc(`providers/${providerId}`)
+  const [membershipSnap, providerSnap] = transaction
+    ? await Promise.all([transaction.get(membershipRef), transaction.get(providerRef)])
+    : await Promise.all([membershipRef.get(), providerRef.get()])
+  const provider = providerSnap.data() as ProviderDoc | undefined
+  if (!membershipSnap.exists || !providerSnap.exists || provider?.status !== 'active') {
     throw new AppError('permission_denied')
   }
+  return profile
+}
+
+/**
+ * Provider-aware authorization with a temporary legacy owner fallback.
+ * Remove the adminUid branch after the production migration is verified.
+ */
+export async function assertAdminAccess(
+  requestAuth: { uid: string } | undefined,
+  group?: GroupDoc,
+  transaction?: Transaction,
+): Promise<UserDoc> {
+  if (group?.providerId) return assertProviderAdmin(requestAuth, group.providerId, transaction)
+  const profile = await adminProfile(requestAuth, transaction)
+  if (!group && profile.providerId) return assertProviderAdmin(requestAuth, profile.providerId, transaction)
+  if (group && (!group.adminUid || group.adminUid !== requestAuth?.uid)) throw new AppError('permission_denied')
+  return profile
+}
+
+export async function providerLanguage(providerId: string): Promise<Lang | undefined> {
+  const provider = (await db.doc(`providers/${providerId}`).get()).data() as ProviderDoc | undefined
+  return provider?.language
+}
+
+export async function groupAdminLanguage(group: GroupDoc, actingUid: string): Promise<Lang | undefined> {
+  if (group.providerId) return providerLanguage(group.providerId)
+  const profile = (await db.doc(`users/${actingUid}`).get()).data() as UserDoc | undefined
+  return profile?.language
 }
 
 /** Finds or creates the auth user + users/{uid} doc for a phone. */
@@ -90,7 +136,27 @@ export const requestOtp = onCall({ region: 'asia-south1', invoker: 'public' }, a
       lastSentAt: now,
     })
 
-    await messaging.sendTemplate(phone, 'login_code', { OTP_NUMBER: code }, 'en')
+    try {
+      const response = await messaging.sendTemplate(phone, 'login_code', { OTP_NUMBER: code }, 'en')
+      await ref.set({
+        message: {
+          providerMessageId: response.providerMessageId,
+          status: 'sent',
+          error: null,
+          sentAt: now,
+        },
+      }, { merge: true })
+    } catch (error) {
+      await ref.set({
+        message: {
+          providerMessageId: null,
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error),
+          sentAt: now,
+        },
+      }, { merge: true })
+      throw error
+    }
     return { sent: true }
   } catch (err) {
     throw toHttpsError(err, { fn: 'requestOtp', uid: req.auth?.uid, data: req.data })
@@ -121,7 +187,33 @@ export const requestLoginLink = onCall({ region: 'asia-south1', invoker: 'public
       transaction.set(sendRef, { lastSentAt: now })
     })
 
-    await sendLoginAccessLink(phone, name, language)
+    let providerMessageId: string | null = null
+    let sendError: string | null = null
+    try {
+      const response = await sendLoginAccessLink(phone, name, language)
+      providerMessageId = response.providerMessageId
+    } catch (error) {
+      sendError = error instanceof Error ? error.message : String(error)
+    }
+    const log: MessageLogDoc = {
+      recipientUid: uid,
+      groupId: null,
+      template: 'login_access',
+      toPhone: phone,
+      membershipId: null,
+      providerMessageId,
+      status: sendError ? 'failed' : 'sent',
+      error: sendError,
+      sentBy: null,
+      createdAt: FieldValue.serverTimestamp() as unknown as number,
+      updatedAt: FieldValue.serverTimestamp() as unknown as number,
+    }
+    try {
+      await writeUserMessage(log)
+    } catch (error) {
+      console.error('login access message log failed:', error)
+    }
+    if (sendError) throw new Error(sendError)
     return { sent: true }
   } catch (err) {
     throw toHttpsError(err, { fn: 'requestLoginLink', uid: req.auth?.uid, data: req.data })
@@ -159,11 +251,51 @@ export const verifyOtp = onCall({ region: 'asia-south1', invoker: 'public' }, as
       throw new AppError('invalid_argument', 'Incorrect or expired code.')
     }
 
-    await ref.delete()
     const { uid } = await ensureUser(phone)
+    const otpData = snap.data() as {
+      message?: { providerMessageId?: string | null; status?: 'sent' | 'failed'; error?: string | null; sentAt?: number }
+    } | undefined
+    if (otpData?.message) {
+      const log: MessageLogDoc = {
+        recipientUid: uid,
+        groupId: null,
+        template: 'login_code',
+        toPhone: phone,
+        membershipId: null,
+        providerMessageId: otpData.message.providerMessageId ?? null,
+        status: otpData.message.status ?? 'sent',
+        error: otpData.message.error ?? null,
+        sentBy: null,
+        createdAt: otpData.message.sentAt ?? now,
+        updatedAt: now,
+      }
+      try {
+        await writeUserMessage(log)
+      } catch (error) {
+        console.error('OTP message log failed:', error)
+      }
+    }
+    await Promise.all([
+      ref.delete(),
+      db.doc(`users/${uid}`).set({ lastLoginAt: FieldValue.serverTimestamp() }, { merge: true }),
+    ])
     const token = await auth.createCustomToken(uid)
     return { token }
   } catch (err) {
     throw toHttpsError(err, { fn: 'verifyOtp', uid: req.auth?.uid, data: req.data })
+  }
+})
+
+export const recordLogin = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const uid = req.auth?.uid
+    if (!uid) throw new AppError('unauthenticated')
+    const userRef = db.doc(`users/${uid}`)
+    const userSnap = await userRef.get()
+    if (!userSnap.exists) throw new AppError('not_found')
+    await userRef.set({ lastLoginAt: FieldValue.serverTimestamp() }, { merge: true })
+    return { ok: true }
+  } catch (error) {
+    throw toHttpsError(error, { fn: 'recordLogin', uid: req.auth?.uid })
   }
 })

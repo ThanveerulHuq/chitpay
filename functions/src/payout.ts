@@ -43,7 +43,7 @@ export const recordPayout = onCall({ region: 'asia-south1', invoker: 'public' },
       if (cycle.status !== 'active') throw new AppError('invalid_transition')
       if (cycle.payout.status === 'paid') throw new AppError('already_exists')
 
-      const poolAmountMinor = group.contributionAmountMinor * Math.max(cycle.expectedPaymentCount, 1)
+      const poolAmountMinor = group.contributionAmountInPaise * Math.max(cycle.expectedPaymentCount, 1)
       const payoutAmountMinor =
         amountMinor != null ? Math.floor(Number(amountMinor)) : poolAmountMinor
       if (!(payoutAmountMinor > 0)) {

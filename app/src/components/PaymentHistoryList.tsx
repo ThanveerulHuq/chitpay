@@ -8,11 +8,9 @@ type Row = PaymentRecord & { name?: string }
 
 export default function PaymentHistoryList({
   records,
-  currency,
   showMember = false,
 }: {
   records: Row[]
-  currency: string
   showMember?: boolean
 }) {
   const t = useT()
@@ -67,7 +65,7 @@ export default function PaymentHistoryList({
                   )}
                 </div>
                 <span className="shrink-0 text-sm font-semibold tabular-nums">
-                  {formatMinor(r.amountMinor, currency)}
+                  {formatMinor(r.amountMinor)}
                 </span>
               </li>
             ))}
