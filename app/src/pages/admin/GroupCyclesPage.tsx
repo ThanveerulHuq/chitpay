@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Play, Trophy } from '@phosphor-icons/react'
 import { callStartCycle } from '@/lib/api'
-import { formatIsoDate, formatMinor, getCycleStartBlockReason } from '@shared'
+import { contributionInPaise, formatIsoDate, formatMinor, getCycleStartBlockReason } from '@shared'
 import GroupShell, { useGroupWorkspace } from './GroupShell'
 import { Button, Chip, ErrorNote } from '@/components/ui'
 import { useI18n } from '@/i18n'
@@ -34,7 +34,7 @@ function CyclesContent() {
     <ol className="space-y-3">
       {cycles.map(({ id, data }) => {
         const winner = members.find((member) => member.id === data.recipientMembershipId)?.data.displayName
-        const expectedAmount = group.contributionAmountInPaise * data.expectedPaymentCount
+        const expectedAmount = contributionInPaise(group) * data.expectedPaymentCount
         const startBlockReason = getCycleStartBlockReason(
           members.filter((member) => member.data.status === 'active').length,
           data.cycleNumber,

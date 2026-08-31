@@ -178,11 +178,18 @@ export async function fetchMyGroups(): Promise<{ id: string; data: GroupDoc }[]>
   if (!user) return []
   const profileSnap = await getDoc(doc(db, 'users', user.uid))
   const profile = profileSnap.data() as UserDoc | undefined
-  const q = profile?.providerId
-    ? query(collection(db, 'groups'), where('providerId', '==', profile.providerId))
-    : query(collection(db, 'groups'), where('adminUid', '==', user.uid))
-
-  const snap = await getDocs(q)
+  if (profile?.providerId) {
+    const providerSnap = await getDocs(query(collection(db, 'groups'), where('providerId', '==', profile.providerId)))
+    // During the provider migration, legacy groups still have adminUid but no providerId.
+    // Include them so admins see all their groups until backfill completes.
+    const legacySnap = await getDocs(query(collection(db, 'groups'), where('adminUid', '==', user.uid)))
+    const merged = new Map<string, { id: string; data: GroupDoc }>()
+    for (const docSnap of [...providerSnap.docs, ...legacySnap.docs]) {
+      if (!merged.has(docSnap.id)) merged.set(docSnap.id, { id: docSnap.id, data: docSnap.data() as GroupDoc })
+    }
+    return [...merged.values()]
+  }
+  const snap = await getDocs(query(collection(db, 'groups'), where('adminUid', '==', user.uid)))
   return snap.docs.map((d) => ({ id: d.id, data: d.data() as GroupDoc }))
 }
 

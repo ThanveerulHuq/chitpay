@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Ticket, Users, CalendarBlank, CurrencyInr, Gear } from '@phosphor-icons/react'
 import { fetchMyGroups, fetchMyMemberships } from '@/lib/api'
-import { formatMinor } from '@shared'
+import { contributionInPaise, formatMinor } from '@shared'
 import { Chip, Page, Button } from '@/components/ui'
 import { GroupsListLoadingScreen } from '@/components/LoadingScreens'
 import { useT } from '@/i18n'
@@ -31,7 +31,7 @@ export default function GroupsListPage() {
         kind: 'admin',
         id,
         name: g.name,
-        amountInPaise: g.contributionAmountInPaise,
+        amountInPaise: contributionInPaise(g),
         memberCount: g.memberCount,
         completedCycleCount: g.completedCycleCount,
         cycleCount: g.cycleCount,
@@ -41,7 +41,7 @@ export default function GroupsListPage() {
           kind: 'member',
           id: m.data.groupId,
           name: m.data.groupName,
-          amountInPaise: m.data.contributionAmountInPaise,
+          amountInPaise: contributionInPaise(m.data),
         }))
 
       setAllEntries([...adminEntries, ...memberEntries])

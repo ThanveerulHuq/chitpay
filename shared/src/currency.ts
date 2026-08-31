@@ -21,3 +21,19 @@ export function formatMinor(minor: number): string {
     return `INR ${major.toFixed(2)}`
   }
 }
+
+/**
+ * Backward compat for groups/memberships created before the paise migration.
+ * Old docs stored `contributionAmountMinor` (and `currency`); new docs store
+ * `contributionAmountInPaise`. Returns the canonical paise amount, or 0 if
+ * neither field exists (so UI renders ₹0 instead of NaN).
+ */
+export function contributionInPaise(doc: {
+  contributionAmountInPaise?: number
+  contributionAmountMinor?: number
+} | null | undefined): number {
+  if (!doc) return 0
+  if (typeof doc.contributionAmountInPaise === 'number') return doc.contributionAmountInPaise
+  if (typeof doc.contributionAmountMinor === 'number') return doc.contributionAmountMinor
+  return 0
+}

@@ -3,7 +3,7 @@ import { X, Money, QrCode, Bank, DotsThreeOutline } from '@phosphor-icons/react'
 import { callMarkPaid, fetchBoard } from '@/lib/api'
 import type { BoardEntry } from '@shared'
 import type { GroupDoc, PaymentMethod } from '@shared'
-import { formatMinor, userMessage } from '@shared'
+import { contributionInPaise, formatMinor, userMessage } from '@shared'
 import { Button, Dropdown, ErrorNote, Field, Input, Textarea } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { PaymentMethodIcon, methodLabel } from '@/pages/admin/GroupDashboardPage'
@@ -106,7 +106,7 @@ export default function PaymentSheet({
         <div className="flex shrink-0 items-start justify-between border-b border-line/60 p-5 pb-4">
           <div>
             <h2 className="text-lg font-bold">{t('workspace.recordPayment')}</h2>
-            <p className="text-sm text-muted">{t('workspace.cycleAmount', { amount: formatMinor(group.contributionAmountInPaise), cycle: formatCycleName(plannedDateForCycle(group, selectedCycleNumber), group.frequency, locale, t) })}</p>
+            <p className="text-sm text-muted">{t('workspace.cycleAmount', { amount: formatMinor(contributionInPaise(group)), cycle: formatCycleName(plannedDateForCycle(group, selectedCycleNumber), group.frequency, locale, t) })}</p>
           </div>
           <button type="button" onClick={onClose} aria-label={t('common.close')} className="rounded-full p-1.5 text-muted hover:bg-sunken hover:text-ink">
             <X size={20} weight="bold" />
@@ -151,7 +151,7 @@ export default function PaymentSheet({
                 <div className="rounded-2xl bg-sunken px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-semibold">{selected.name}</span>
-                    <span className="font-semibold tabular-nums">{formatMinor(group.contributionAmountInPaise)}</span>
+                    <span className="font-semibold tabular-nums">{formatMinor(contributionInPaise(group))}</span>
                   </div>
                 </div>
               )}

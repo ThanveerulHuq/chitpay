@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bell, MagnifyingGlass, Minus, Money, PencilSimple, Plus, X } from '@phosphor-icons/react'
 import { callSendMemberReminder, callUpdateMemberChitCount, fetchBoard, fetchGroupPaymentRecords } from '@/lib/api'
-import { formatMinor } from '@shared'
+import { contributionInPaise, formatMinor } from '@shared'
 import type { GroupMemberDoc } from '@shared'
 import { AddMemberSection } from '@/pages/admin/GroupDashboardPage'
 import GroupShell, { useGroupWorkspace } from './GroupShell'
@@ -148,7 +148,7 @@ function MembersContent() {
             }, 0)
             const pendingCycles = [...new Set(person.slots.flatMap((slot) => pendingByMember.get(slot.id) ?? []))].sort((a, b) => a - b)
             const pendingPaymentCount = person.slots.reduce((sum, slot) => sum + (pendingByMember.get(slot.id)?.length ?? 0), 0)
-            const totalPending = pendingPaymentCount * group.contributionAmountInPaise
+            const totalPending = pendingPaymentCount * contributionInPaise(group)
             return (
               <li key={person.uid} className="flex items-center gap-3 py-3.5">
                 <div className="min-w-0 flex-1">

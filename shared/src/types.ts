@@ -40,6 +40,10 @@ export interface GroupDoc {
   adminUid?: string
   name: string
   contributionAmountInPaise: number
+  /** @deprecated legacy field — use contributionAmountInPaise; kept for old-data compat */
+  contributionAmountMinor?: number
+  /** @deprecated legacy currency field — INR is the system constant */
+  currency?: string
   frequency: CycleFrequency
   cycleCount: number
   startDate: string // YYYY-MM-DD
@@ -149,6 +153,10 @@ export interface MembershipMirrorDoc {
   groupName: string
   membershipId: string
   contributionAmountInPaise: number
+  /** @deprecated legacy field */
+  contributionAmountMinor?: number
+  /** @deprecated legacy field */
+  currency?: string
   status: MemberSlotStatus
   selectedInCycle: number | null
   joinedAt: number

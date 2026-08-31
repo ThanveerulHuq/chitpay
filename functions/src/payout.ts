@@ -1,7 +1,7 @@
 import { db, auth } from './firebaseAdmin.js'
 import { onCall } from 'firebase-functions/v2/https'
 import { FieldValue } from 'firebase-admin/firestore'
-import { AppError, assertGroupWritable, assertTransition } from '@chitapp/shared'
+import { AppError, assertGroupWritable, assertTransition, contributionInPaise } from '@chitapp/shared'
 import type { CycleDoc, GroupDoc, PaymentDoc } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
 import { assertAdminAccess } from './auth.js'
@@ -43,7 +43,7 @@ export const recordPayout = onCall({ region: 'asia-south1', invoker: 'public' },
       if (cycle.status !== 'active') throw new AppError('invalid_transition')
       if (cycle.payout.status === 'paid') throw new AppError('already_exists')
 
-      const poolAmountMinor = group.contributionAmountInPaise * Math.max(cycle.expectedPaymentCount, 1)
+      const poolAmountMinor = contributionInPaise(group) * Math.max(cycle.expectedPaymentCount, 1)
       const payoutAmountMinor =
         amountMinor != null ? Math.floor(Number(amountMinor)) : poolAmountMinor
       if (!(payoutAmountMinor > 0)) {

@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore'
 import {
   AppError,
   assertGroupWritable,
+  contributionInPaise,
   generateCycleSchedule,
   normalizePhone,
   resolveMessageLanguage,
@@ -334,7 +335,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
         const boardRef = cycleRef.collection('board').doc('board')
         for (const { memberRef } of slots) {
           tx.set(cycleRef.collection('payments').doc(memberRef.id), {
-            amountMinor: currentGroup.contributionAmountInPaise,
+            amountMinor: contributionInPaise(currentGroup),
             status: 'pending',
             method: null,
             referenceNo: null,
@@ -362,7 +363,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
           groupId: input.groupId,
           groupName: group.name,
           membershipId: memberRef.id,
-          contributionAmountInPaise: currentGroup.contributionAmountInPaise,
+          contributionAmountInPaise: contributionInPaise(currentGroup),
           status: 'active',
           selectedInCycle: null,
           joinedAt: FieldValue.serverTimestamp(),
@@ -498,7 +499,7 @@ export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'p
             groupId,
             groupName: group.name,
             membershipId: slot.ref.id,
-            contributionAmountInPaise: group.contributionAmountInPaise,
+            contributionAmountInPaise: contributionInPaise(group),
             status: 'active',
             selectedInCycle: null,
             joinedAt: FieldValue.serverTimestamp(),
@@ -508,7 +509,7 @@ export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'p
         for (const { cycleSnap, board } of activeCycles) {
           for (const slot of newSlots) {
             tx.set(cycleSnap.ref.collection('payments').doc(slot.ref.id), {
-              amountMinor: group.contributionAmountInPaise,
+              amountMinor: contributionInPaise(group),
               status: 'pending',
               method: null,
               referenceNo: null,

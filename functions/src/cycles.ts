@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore'
 import {
   AppError,
   assertGroupWritable,
+  contributionInPaise,
   formatMinor,
   getCycleStartBlockReason,
   resolveMessageLanguage,
@@ -101,7 +102,7 @@ export const startCycle = onCall({ region: 'asia-south1', invoker: 'public' }, a
       const entries = membersSnap.docs.map((m) => {
         const member = m.data() as GroupMemberDoc
         tx.set(cycleRef.collection('payments').doc(m.id), {
-          amountMinor: group.contributionAmountInPaise,
+          amountMinor: contributionInPaise(group),
           status: 'pending',
           method: null,
           referenceNo: null,
@@ -200,7 +201,7 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
 
       const now = FieldValue.serverTimestamp() as unknown as number
       const nextPayment: PaymentDoc = {
-        amountMinor: group.contributionAmountInPaise,
+        amountMinor: contributionInPaise(group),
         status: 'paid',
         method,
         referenceNo: input.referenceNo?.trim() || null,
@@ -221,12 +222,12 @@ export const markPaid = onCall({ region: 'asia-south1', invoker: 'public' }, asy
       }
 
       tx.update(memberRef, {
-        totalContributedMinor: FieldValue.increment(group.contributionAmountInPaise),
+        totalContributedMinor: FieldValue.increment(contributionInPaise(group)),
         paidCycleCount: FieldValue.increment(1),
       })
       tx.update(cycleRef, {
         paidCount: FieldValue.increment(1),
-        collectedAmountMinor: FieldValue.increment(group.contributionAmountInPaise),
+        collectedAmountMinor: FieldValue.increment(contributionInPaise(group)),
       })
       const event: PaymentEventDoc = {
         groupId: input.groupId,
@@ -309,7 +310,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
           member_name: member.displayName,
           group_name: group.name,
           pending_cycles: String(n),
-          total_due: formatMinor(group.contributionAmountInPaise),
+          total_due: formatMinor(contributionInPaise(group)),
           group_id: groupId,
         }, language)
         providerMessageId = res.providerMessageId

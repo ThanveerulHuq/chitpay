@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Bank, CaretRight, DotsThreeOutline, HandCoins, MagnifyingGlass, Minus, Money, Plus, QrCode, Trophy, X } from '@phosphor-icons/react'
 import { callAddMember, callConfirmSelection, callRecordPayout } from '@/lib/api'
-import { formatMinor, toMinor } from '@shared'
+import { contributionInPaise, formatMinor, toMinor } from '@shared'
 import type { BoardEntry, CycleDoc, GroupDoc, GroupMemberDoc, PaymentMethod } from '@shared'
 import { Button, ErrorNote, Field, Input, PhoneInput } from '@/components/ui'
 import { useI18n } from '@/i18n'
@@ -49,7 +49,7 @@ export function SelectionSection({ groupId, group, cycle, board, members, onChan
   })
   const willing = eligible.filter((entry) => willingMembershipIds.has(entry.membershipId))
   const visibleEligible = eligible.filter((entry) => entry.name.toLowerCase().includes(search.trim().toLowerCase()))
-  const poolAmountMinor = group.contributionAmountInPaise * cycle.expectedPaymentCount
+  const poolAmountMinor = contributionInPaise(group) * cycle.expectedPaymentCount
   useBodyLock(pickerOpen)
   if (cycle.status !== 'active') return null
 

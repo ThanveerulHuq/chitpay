@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore'
 import {
   AppError,
   assertGroupWritable,
+  contributionInPaise,
   formatMinor,
   resolveMessageLanguage,
   validateSelectionParticipants,
@@ -98,7 +99,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
         throw new AppError('invalid_argument')
       }
 
-      poolAmountMinor = group.contributionAmountInPaise * Math.max(cycle.expectedPaymentCount, 1)
+      poolAmountMinor = contributionInPaise(group) * Math.max(cycle.expectedPaymentCount, 1)
 
       const now = FieldValue.serverTimestamp() as unknown as number
 

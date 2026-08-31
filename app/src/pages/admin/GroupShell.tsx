@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Link, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArrowCounterClockwise, ArrowLeft, FileText, Gear, X } from '@phosphor-icons/react'
 import { callArchiveGroup, callUnarchiveGroup, callUpdateGroupSettings, fetchCycles, fetchGroup, fetchGroupMembers, fetchMyMemberships } from '@/lib/api'
-import { formatMinor, resolveGroupVisibility } from '@shared'
+import { contributionInPaise, formatMinor, resolveGroupVisibility } from '@shared'
 import type { CycleDoc, GroupDoc, GroupMemberDoc } from '@shared'
 import { Button, ErrorNote, Field, Input, Page, Skeleton } from '@/components/ui'
 import { useI18n } from '@/i18n'
@@ -227,7 +227,7 @@ export default function GroupShell({ children }: { children: ReactNode }) {
           <p className="pb-2 text-sm text-muted">
             {t('workspace.contribution')}{' '}
             <strong className="font-bold text-ink tabular-nums">
-              {formatMinor(group.data.contributionAmountInPaise)}
+              {formatMinor(contributionInPaise(group.data))}
             </strong>
           </p>
           {!isReportsPage && (
