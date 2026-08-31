@@ -10,8 +10,6 @@
   "scripts": {
     "admin:create": "node scripts/create-admin.mjs",
     "provider:create": "node scripts/create-provider.mjs",
-    "provider:migrate": "node scripts/migrate-providers.mjs",
-    "schema:migrate": "node scripts/migrate-schema-v2.mjs",
     "build": "rm -rf lib && tsc --noEmit && esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=lib/index.js --alias:@chitapp/shared=../shared/src/index.ts --external:firebase-admin --external:firebase-functions",
     "build:watch": "tsc --watch",
     "typecheck": "tsc --noEmit",
