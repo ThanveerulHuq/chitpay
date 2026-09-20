@@ -37,6 +37,45 @@ export async function sendLoginAccessLink(
   return messaging.sendTemplate(phone, 'login_access', { name, id: loginLinkId }, language)
 }
 
+/** Issues and sends a WhatsApp OTP for an existing or newly-created account. */
+export async function sendLoginOtp(
+  phone: string,
+  language: Lang = 'en',
+): Promise<{ providerMessageId: string | null }> {
+  const now = Date.now()
+  const code = generateOtpCode()
+  const ref = db.doc(`otps/${phone}`)
+  await ref.set({
+    codeHash: hashOtpCode(code, phone),
+    expiresAt: now + OTP_TTL_MS,
+    attempts: 0,
+    lastSentAt: now,
+  })
+
+  try {
+    const response = await messaging.sendTemplate(phone, 'login_code', { OTP_NUMBER: code }, language)
+    await ref.set({
+      message: {
+        providerMessageId: response.providerMessageId,
+        status: 'sent',
+        error: null,
+        sentAt: now,
+      },
+    }, { merge: true })
+    return response
+  } catch (error) {
+    await ref.set({
+      message: {
+        providerMessageId: null,
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+        sentAt: now,
+      },
+    }, { merge: true })
+    throw error
+  }
+}
+
 async function adminProfile(
   requestAuth: { uid: string } | undefined,
   transaction?: Transaction,
@@ -122,41 +161,13 @@ export const requestOtp = onCall({ region: 'asia-south1', invoker: 'public' }, a
   try {
     if (!req.auth && !req.data?.phone) throw new AppError('unauthenticated')
     const phone = normalizePhone(String(req.data?.phone ?? ''))
+    const language: Lang = req.data?.language === 'ta' ? 'ta' : 'en'
     const now = Date.now()
 
     const ref = db.doc(`otps/${phone}`)
     await ref.get().then((snap) => assertOtpSendable(snap, now))
 
-    const code = generateOtpCode()
-    const salt = phone
-    await ref.set({
-      codeHash: hashOtpCode(code, salt),
-      expiresAt: now + OTP_TTL_MS,
-      attempts: 0,
-      lastSentAt: now,
-    })
-
-    try {
-      const response = await messaging.sendTemplate(phone, 'login_code', { OTP_NUMBER: code }, 'en')
-      await ref.set({
-        message: {
-          providerMessageId: response.providerMessageId,
-          status: 'sent',
-          error: null,
-          sentAt: now,
-        },
-      }, { merge: true })
-    } catch (error) {
-      await ref.set({
-        message: {
-          providerMessageId: null,
-          status: 'failed',
-          error: error instanceof Error ? error.message : String(error),
-          sentAt: now,
-        },
-      }, { merge: true })
-      throw error
-    }
+    await sendLoginOtp(phone, language)
     return { sent: true }
   } catch (err) {
     throw toHttpsError(err, { fn: 'requestOtp', uid: req.auth?.uid, data: req.data })

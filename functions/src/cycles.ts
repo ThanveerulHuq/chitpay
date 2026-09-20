@@ -369,6 +369,10 @@ export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'publ
     if (members.some((candidate) => candidate!.uid !== member.uid)) {
       throw new AppError('invalid_argument', 'All chits must belong to the same member.')
     }
+    const memberNames = [...new Map(members.map((candidate) => [
+      candidate!.displayName.trim().toLocaleLowerCase(),
+      candidate!.displayName.trim(),
+    ])).values()].filter(Boolean)
 
     const activeCyclesSnap = await groupRef.collection('cycles').where('status', '==', 'active').get()
     const pending = (await Promise.all(activeCyclesSnap.docs.map(async (cycleDoc) => {
@@ -399,7 +403,7 @@ export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'publ
     try {
       const language = resolveMessageLanguage(user.language, await groupAdminLanguage(group, uid))
       const res = await messaging.sendTemplate(user.phone, template, {
-        member_name: member.displayName,
+        member_name: memberNames.join(' / ') || member.displayName,
         group_name: group.name,
         pending_cycles: cycleNumbers.join(', '),
         total_due: formatMinor(totalDueMinor),

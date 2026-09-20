@@ -20,7 +20,12 @@ export const auth = getAuth(app)
 export const db = getFirestore(app, 'chitpay')
 export const functions = getFunctions(app, 'asia-south1')
 
-// Initialize Analytics only if it is supported (e.g. browser environment)
-export const analyticsPromise = isSupported().then(supported => 
-  supported ? getAnalytics(app) : null
-)
+// Analytics is not needed by local development or the app's auth/data flows.
+// Keeping it production-only avoids Firebase Installations requests from a
+// localhost session, where blocked/offline analytics should not look like an
+// application error. A failed production initialization is also non-fatal.
+export const analyticsPromise = import.meta.env.PROD
+  ? isSupported()
+    .then((supported) => supported ? getAnalytics(app) : null)
+    .catch(() => null)
+  : Promise.resolve(null)

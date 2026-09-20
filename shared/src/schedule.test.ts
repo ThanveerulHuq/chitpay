@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addMonthsClamped, generateCycleSchedule, isValidIsoDate } from './schedule.js'
+import { addMonthsClamped, generateCycleSchedule, isStartDateEditable, isValidIsoDate } from './schedule.js'
 
 describe('isValidIsoDate', () => {
   it('accepts real calendar dates in ISO format', () => {
@@ -50,5 +50,27 @@ describe('generateCycleSchedule', () => {
 describe('addMonthsClamped', () => {
   it('handles non-leap February', () => {
     expect(addMonthsClamped('2025-01-31', 1)).toBe('2025-02-28')
+  })
+})
+
+describe('isStartDateEditable', () => {
+  it('allows edits while the first cycle is upcoming', () => {
+    expect(isStartDateEditable([
+      { cycleNumber: 1, status: 'upcoming' },
+      { cycleNumber: 2, status: 'upcoming' },
+    ])).toBe(true)
+  })
+
+  it('blocks edits once the first cycle leaves upcoming', () => {
+    expect(isStartDateEditable([
+      { cycleNumber: 1, status: 'active' },
+      { cycleNumber: 2, status: 'upcoming' },
+    ])).toBe(false)
+    expect(isStartDateEditable([
+      { cycleNumber: 1, status: 'complete' },
+      { cycleNumber: 2, status: 'complete' },
+    ])).toBe(false)
+    expect(isStartDateEditable([])).toBe(false)
+    expect(isStartDateEditable([{ cycleNumber: 2, status: 'upcoming' }])).toBe(false)
   })
 })

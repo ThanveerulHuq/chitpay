@@ -25,9 +25,9 @@ export function syntheticEmail(phone: string): string {
   return `${normalizePhone(phone)}@phone.chitapp.app`
 }
 
-export async function requestOtp(phone: string): Promise<void> {
+export async function requestOtp(phone: string, language: 'en' | 'ta' = 'en'): Promise<void> {
   const call = httpsCallable(functions, 'requestOtp')
-  await call({ phone: normalizePhone(phone) })
+  await call({ phone: normalizePhone(phone), language })
 }
 
 export async function requestLoginLink(phone: string, language: 'en' | 'ta'): Promise<void> {

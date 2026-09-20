@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Archive, Buildings, CaretRight, CheckCircle, Globe, PencilSimple, ShieldStar, SignOut, User, UsersThree } from '@phosphor-icons/react'
 import { Page, PageHeader, Button, ErrorNote, Field, Input } from '@/components/ui'
+import { useBranding } from '@/lib/brandingContext'
 import { useAuth } from '@/lib/useAuth'
 import { callUpdateOwnName } from '@/lib/api'
 import { useI18n } from '@/i18n'
@@ -11,6 +12,7 @@ import { groupsPath, settingsPath, useExperience } from '@/lib/roleRoutes'
 export default function SettingsPage() {
   const { lang, setLang, t } = useI18n()
   const { user, profile, logout, isAdmin } = useAuth()
+  const { iconSrc } = useBranding()
   const experience = useExperience()
   const [name, setName] = useState('')
   const [savedName, setSavedName] = useState('')
@@ -209,7 +211,7 @@ export default function SettingsPage() {
         {/* App Info Footer */}
         <div className="mt-12 flex flex-col items-center justify-center text-center text-xs text-faint">
           <img
-            src="/brand/chitpay-app-icon-hands.png"
+            src={iconSrc}
             alt=""
             className="mb-2 size-7 rounded-lg object-contain opacity-70"
           />

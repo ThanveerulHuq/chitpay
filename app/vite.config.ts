@@ -17,12 +17,14 @@ export default defineConfig({
         'chitpay-pwa-512.png',
       ],
       manifest: {
+        id: '/',
         name: 'ChitPay',
         short_name: 'ChitPay',
         description: 'Collect. Select. Manage.',
         theme_color: '#059669',
         background_color: '#fafaf9',
         display: 'standalone',
+        scope: '/',
         start_url: '/',
         icons: [
           { src: '/chitpay-pwa-192.png', sizes: '192x192', type: 'image/png' },

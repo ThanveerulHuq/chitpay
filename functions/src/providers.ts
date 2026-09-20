@@ -7,17 +7,54 @@ import {
   rolesWithProviderAdmin,
   rolesWithoutProviderAdmin,
   type MessageLogDoc,
+  type ProviderAppIcon,
   type ProviderDoc,
   type UserDoc,
 } from '@chitapp/shared'
 import { auth, db } from './firebaseAdmin.js'
-import { assertProviderAdmin, providerLanguage, sendLoginAccessLink, syntheticEmail } from './auth.js'
+import { assertProviderAdmin, providerLanguage, sendLoginOtp, syntheticEmail } from './auth.js'
 import { toHttpsError } from './httpsError.js'
 import { writeUserMessage } from './messageLog.js'
 
 interface AddProviderAdminInput {
   name: string
   phone: string
+}
+
+const MAX_APP_ICON_BYTES = 750_000
+
+function normalizedAppIcon(value: unknown): ProviderAppIcon | null {
+  if (value === null) return null
+  const icon = value as Partial<ProviderAppIcon> | undefined
+  if (
+    icon?.contentType !== 'image/webp'
+    || typeof icon.image192 !== 'string'
+    || typeof icon.image512 !== 'string'
+    || typeof icon.version !== 'string'
+    || !/^[A-Za-z0-9_-]{8,80}$/.test(icon.version)
+  ) {
+    throw new AppError('invalid_argument', 'Invalid app icon.')
+  }
+  const images = [icon.image192, icon.image512]
+  let totalBytes = 0
+  for (const image of images) {
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(image)) {
+      throw new AppError('invalid_argument', 'Invalid app icon.')
+    }
+    const bytes = Buffer.from(image, 'base64')
+    totalBytes += bytes.length
+    if (
+      bytes.length < 16
+      || bytes.subarray(0, 4).toString('ascii') !== 'RIFF'
+      || bytes.subarray(8, 12).toString('ascii') !== 'WEBP'
+    ) {
+      throw new AppError('invalid_argument', 'Invalid app icon.')
+    }
+  }
+  if (totalBytes > MAX_APP_ICON_BYTES) {
+    throw new AppError('invalid_argument', 'App icon is too large.')
+  }
+  return icon as ProviderAppIcon
 }
 
 function normalizedName(value: unknown): string {
@@ -84,6 +121,25 @@ export const updateProviderName = onCall({ region: 'asia-south1', invoker: 'publ
   }
 })
 
+export const updateProviderAppIcon = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const uid = req.auth?.uid
+    if (!uid) throw new AppError('unauthenticated')
+    const providerId = await callerProvider(uid)
+    const appIcon = normalizedAppIcon(req.data?.appIcon)
+    await db.runTransaction(async (transaction) => {
+      await assertProviderAdmin({ uid }, providerId, transaction)
+      transaction.update(db.doc(`providers/${providerId}`), {
+        appIcon: appIcon ?? FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      })
+    })
+    return { ok: true }
+  } catch (error) {
+    throw toHttpsError(error, { fn: 'updateProviderAppIcon', uid: req.auth?.uid })
+  }
+})
+
 export const addProviderAdmin = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
   let createdAuthUid: string | null = null
   try {
@@ -137,23 +193,17 @@ export const addProviderAdmin = onCall({ region: 'asia-south1', invoker: 'public
     let providerMessageId: string | null = null
     let notificationError: string | null = null
     try {
-      const targetSnap = await db.doc(`users/${targetUid}`).get()
-      const target = targetSnap.data() as UserDoc | undefined
-      const response = await sendLoginAccessLink(
-        phone,
-        target?.name?.trim() || name,
-        await providerLanguage(providerId) ?? 'en',
-      )
+      const response = await sendLoginOtp(phone, await providerLanguage(providerId) ?? 'en')
       providerMessageId = response.providerMessageId
       notificationSent = true
     } catch (error) {
       notificationError = error instanceof Error ? error.message : String(error)
-      console.error('provider admin login-link notification failed:', error)
+      console.error('provider admin OTP notification failed:', error)
     }
     const message: MessageLogDoc = {
       recipientUid: targetUid,
       groupId: null,
-      template: 'login_access',
+      template: 'login_code',
       toPhone: phone,
       membershipId: null,
       providerMessageId,
@@ -166,7 +216,7 @@ export const addProviderAdmin = onCall({ region: 'asia-south1', invoker: 'public
     try {
       await writeUserMessage(message)
     } catch (error) {
-      console.error('provider admin login-link message log failed:', error)
+      console.error('provider admin OTP message log failed:', error)
     }
     return { uid: targetUid, notificationSent }
   } catch (error) {

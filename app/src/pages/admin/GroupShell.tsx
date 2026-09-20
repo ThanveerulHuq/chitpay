@@ -2,9 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Link, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArrowCounterClockwise, ArrowLeft, FileText, Gear, X } from '@phosphor-icons/react'
 import { callArchiveGroup, callUnarchiveGroup, callUpdateGroupSettings, fetchCycles, fetchGroup, fetchGroupMembers, fetchMyMemberships } from '@/lib/api'
-import { contributionInPaise, formatMinor, resolveGroupVisibility } from '@shared'
+import { contributionInPaise, formatMinor, isStartDateEditable, isValidIsoDate, resolveGroupVisibility } from '@shared'
 import type { CycleDoc, GroupDoc, GroupMemberDoc } from '@shared'
-import { Button, ErrorNote, Field, Input, Page, Skeleton } from '@/components/ui'
+import { Button, DateInput, ErrorNote, Field, Input, Page, Skeleton } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { useAuth } from '@/lib/useAuth'
 import { useBodyLock } from '@/lib/useBodyLock'
@@ -294,6 +294,7 @@ export default function GroupShell({ children }: { children: ReactNode }) {
         <GroupSettingsSheet
           groupId={groupId}
           group={group.data}
+          canEditStartDate={isStartDateEditable(cycles.map(({ data }) => data))}
           onClose={() => setSettingsOpen(false)}
           onSaved={() => {
             setSettingsOpen(false)
@@ -306,10 +307,11 @@ export default function GroupShell({ children }: { children: ReactNode }) {
   )
 }
 
-function GroupSettingsSheet({ groupId, group, onClose, onSaved }: { groupId: string; group: GroupDoc; onClose: () => void; onSaved: () => void }) {
+function GroupSettingsSheet({ groupId, group, canEditStartDate, onClose, onSaved }: { groupId: string; group: GroupDoc; canEditStartDate: boolean; onClose: () => void; onSaved: () => void }) {
   const { t } = useI18n()
   const initialVisibility = resolveGroupVisibility(group)
   const [name, setName] = useState(group.name)
+  const [startDate, setStartDate] = useState(group.startDate)
   const [showOtherMembers, setShowOtherMembers] = useState(initialVisibility.showOtherMembers)
   const [showOtherMemberDues, setShowOtherMemberDues] = useState(initialVisibility.showOtherMemberDues)
   const [busy, setBusy] = useState(false)
@@ -323,13 +325,24 @@ function GroupSettingsSheet({ groupId, group, onClose, onSaved }: { groupId: str
       setError(t('workspace.groupNameRequired'))
       return
     }
+    if (canEditStartDate && !isValidIsoDate(startDate)) {
+      setError(t('workspace.startDateInvalid'))
+      return
+    }
     setBusy(true)
     setError(null)
     try {
-      await callUpdateGroupSettings({ groupId, name: trimmedName, showOtherMembers, showOtherMemberDues })
+      await callUpdateGroupSettings({
+        groupId,
+        name: trimmedName,
+        showOtherMembers,
+        showOtherMemberDues,
+        ...(canEditStartDate && startDate !== group.startDate ? { startDate } : {}),
+      })
       onSaved()
-    } catch {
-      setError(t('workspace.groupSettingsError'))
+    } catch (caught) {
+      const message = (caught as Error | undefined)?.message ?? ''
+      setError(/locked after the first cycle/i.test(message) ? t('workspace.startDateLocked') : t('workspace.groupSettingsError'))
       setBusy(false)
     }
   }
@@ -348,6 +361,19 @@ function GroupSettingsSheet({ groupId, group, onClose, onSaved }: { groupId: str
         <div className="mt-5">
           <Field label={t('createGroup.name')}>
             <Input required value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+        </div>
+        <div className="mt-5">
+          <Field
+            label={t('workspace.startDate')}
+            hint={canEditStartDate ? t('workspace.startDateHint') : t('workspace.startDateLocked')}
+          >
+            <DateInput
+              required
+              value={startDate}
+              disabled={!canEditStartDate || busy}
+              onChange={(event) => setStartDate(event.target.value)}
+            />
           </Field>
         </div>
         <div className="mt-6 space-y-4 border-t border-line pt-5">

@@ -44,6 +44,7 @@ loginLinkRequests/{phone}
 | `name` | string | yes | Display name of the chit provider. |
 | `language` | `'en' \| 'ta'` | yes | Shared admin UI language and fallback language for provider messages. |
 | `status` | `'active' \| 'inactive'` | yes | Only active providers pass authorization. |
+| `appIcon` | object | no | Provider PWA icon: WebP `image192`/`image512` base64 payloads plus a cache-busting `version`. Missing means the default ChitPay icon. |
 | `createdBy` | UID | yes | Administrator who created or originally owned the provider. |
 | `createdAt` | timestamp | yes | Creation time. |
 | `updatedAt` | timestamp | no | Last provider-name update. |
@@ -89,6 +90,7 @@ Member-facing mirror of a group membership slot. The document ID matches `groups
 | Field | Type | Required | Notes |
 |---|---|---:|---|
 | `groupId` | group ID | yes | Parent group. |
+| `providerId` | provider ID | no | Denormalized provider used for branding. Older mirrors resolve it through the group document. |
 | `groupName` | string | yes | Denormalized group name. |
 | `membershipId` | membership ID | yes | Must equal the document ID. |
 | `contributionAmountInPaise` | positive integer | yes | Denormalized contribution per slot per cycle, in paise. For example, ₹5,000 is stored as `500000`. |
@@ -159,7 +161,7 @@ Each document is one chit slot. A user may own multiple slots in the same group.
 |---|---|---:|---|
 | `uid` | UID | yes | Account that owns the slot. |
 | `slotNo` | integer | yes | Stable sequential slot number. |
-| `displayName` | string | yes | Group-local denormalized member name. |
+| `displayName` | string | yes | Name assigned to this share. Slots owned by one UID may use different names when a mobile login is shared. |
 | `status` | `'active' \| 'inactive'` | yes | Slot lifecycle state. |
 | `selectedInCycle` | integer or null | yes | Recipient cycle for this specific chit slot. If one user owns three shares, they have three membership documents and each slot is selected independently. |
 | `totalContributedMinor` | integer | yes | Denormalized lifetime paid amount. |
@@ -278,6 +280,7 @@ Rate-limit marker keyed by normalized phone number.
 - Every provider must retain at least one administrator.
 - A group belongs to one provider after migration.
 - A user may own multiple membership slots in a group. `selectedInCycle` is tracked independently on each slot, so selecting one share does not mark the user's other shares as selected.
+- A user's phone remains account-wide and unique, while member lists derive the user's visible names from the unique `displayName` values on their slots.
 - Membership changes must update the group member document, user membership mirror, group-access marker, active-cycle payments, and board entries together.
 - Payment mutations update the payment document, board, cycle totals, member totals, and a group-level immutable payment event in one transaction.
 - Selection mutations update the cycle recipient, group member, user mirror, and group-level immutable selection audit in one transaction.

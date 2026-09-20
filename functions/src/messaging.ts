@@ -62,7 +62,8 @@ class KwicMessagingService implements MessagingService {
     const payload = {
       mobile_number: toPhone.replace(/[^0-9]/g, ''),
       variable,
-      template_id: `${template}_${language}`,
+      // The OTP template is a single Kwic template ID shared by both app languages.
+      template_id: template === 'login_code' ? 'kwic_app_otp' : `${template}_${language}`,
       ...(headerImageUrl ? { header_image_url: headerImageUrl } : {}),
     }
 

@@ -32,6 +32,13 @@
     ],
     "rewrites": [
       {
+        "source": "/provider-branding/**",
+        "function": {
+          "functionId": "providerBranding",
+          "region": "asia-south1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

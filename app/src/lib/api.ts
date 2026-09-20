@@ -12,6 +12,7 @@ import type {
   PaymentEventDoc,
   PaymentMethod,
   Lang,
+  ProviderAppIcon,
   ProviderDoc,
   UserDoc,
 } from '@shared'
@@ -38,6 +39,7 @@ export async function callUpdateGroupSettings(input: {
   name: string
   showOtherMembers: boolean
   showOtherMemberDues: boolean
+  startDate?: string
 }): Promise<void> {
   const call = httpsCallable<typeof input, { ok: boolean }>(functions, 'updateGroupSettings')
   await call(input)
@@ -67,10 +69,35 @@ export async function callAddMember(input: {
   name: string
   phone: string
   chitCount?: number
+  confirmExistingShares?: boolean
 }): Promise<AddMemberResult> {
   const call = httpsCallable<typeof input, AddMemberResult>(functions, 'addMember')
   const res = await call(input)
   return res.data
+}
+
+export interface ExistingGroupMemberPhone {
+  exists: boolean
+  names: string[]
+  shareCount: number
+}
+
+export async function callInspectGroupMemberPhone(input: {
+  groupId: string
+  phone: string
+}): Promise<ExistingGroupMemberPhone> {
+  const call = httpsCallable<typeof input, ExistingGroupMemberPhone>(functions, 'inspectGroupMemberPhone')
+  const res = await call(input)
+  return res.data
+}
+
+export async function callListGroupMemberContacts(groupId: string): Promise<Array<{ uid: string; phone: string }>> {
+  const call = httpsCallable<{ groupId: string }, { contacts: Array<{ uid: string; phone: string }> }>(
+    functions,
+    'listGroupMemberContacts',
+  )
+  const res = await call({ groupId })
+  return res.data.contacts
 }
 
 export async function callUpdateMemberChitCount(input: {
@@ -93,6 +120,7 @@ export interface ManagedMemberGroup {
 export interface ManagedMember {
   uid: string
   name: string
+  names: string[]
   phone: string
   isAdmin: boolean
   groupCount: number
@@ -112,16 +140,18 @@ export async function callListManagedMembers(): Promise<ManagedMember[]> {
 
 export async function callUpdateManagedMemberProfile(input: {
   uid: string
-  name: string
+  names: Array<{ currentName: string; name: string }>
   phone: string
-}): Promise<{ phoneChanged: boolean; notificationSent: boolean }> {
+}): Promise<{ names: string[]; phoneChanged: boolean; notificationSent: boolean }> {
   const call = httpsCallable<typeof input, {
     ok: boolean
+    names: string[]
     phoneChanged: boolean
     notificationSent: boolean
   }>(functions, 'updateManagedMemberProfile')
   const res = await call(input)
   return {
+    names: res.data.names,
     phoneChanged: res.data.phoneChanged,
     notificationSent: res.data.notificationSent,
   }
@@ -159,6 +189,11 @@ export async function callGetMyProvider(): Promise<MyProvider> {
 export async function callUpdateProviderName(name: string): Promise<void> {
   const call = httpsCallable<{ name: string }, { ok: boolean }>(functions, 'updateProviderName')
   await call({ name })
+}
+
+export async function callUpdateProviderAppIcon(appIcon: ProviderAppIcon | null): Promise<void> {
+  const call = httpsCallable<{ appIcon: ProviderAppIcon | null }, { ok: boolean }>(functions, 'updateProviderAppIcon')
+  await call({ appIcon })
 }
 
 export async function callAddProviderAdmin(input: { name: string; phone: string }): Promise<{ notificationSent: boolean }> {

@@ -51,7 +51,7 @@ export default function ManagedMembersPage() {
     const query = search.trim().toLowerCase()
     if (!query) return members
     return members.filter((member) => (
-      member.name.toLowerCase().includes(query)
+      member.names.some((name) => name.toLowerCase().includes(query))
       || member.phone.includes(query.replace(/\D/g, ''))
       || member.groups.some((group) => group.name.toLowerCase().includes(query))
     ))
@@ -126,7 +126,6 @@ export default function ManagedMembersPage() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-semibold text-ink">{member.name}</span>
-                  <span className="mt-0.5 block text-sm text-muted">{formatPhone(member.phone)}</span>
                   <span className="mt-1 block truncate text-xs text-faint">
                     {t('managedMembers.slotSummary', { slots: member.slotCount, groups: member.groupCount })}
                   </span>
@@ -186,7 +185,7 @@ function EditMemberSheet({
   onSaved: (member: ManagedMember, phoneChanged: boolean, notificationSent: boolean) => void
 }) {
   const { lang, t } = useI18n()
-  const [name, setName] = useState(member.name)
+  const [names, setNames] = useState(member.names)
   const [phone, setPhone] = useState(member.phone.replace(/^91/, ''))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -200,9 +199,9 @@ function EditMemberSheet({
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [busy, onClose])
 
-  const cleanName = name.trim()
-  const changed = cleanName !== member.name || `91${phone}` !== member.phone
-  const valid = cleanName.length > 0 && phone.length === 10
+  const cleanNames = names.map((name) => name.trim())
+  const changed = cleanNames.some((name, index) => name !== member.names[index]) || `91${phone}` !== member.phone
+  const valid = cleanNames.every((name) => name.length > 0) && phone.length === 10
 
   async function save(event: FormEvent) {
     event.preventDefault()
@@ -212,10 +211,10 @@ function EditMemberSheet({
     try {
       const result = await callUpdateManagedMemberProfile({
         uid: member.uid,
-        name: cleanName,
+        names: member.names.map((currentName, index) => ({ currentName, name: cleanNames[index]! })),
         phone: `+91${phone}`,
       })
-      onSaved({ ...member, name: cleanName, phone: `91${phone}` }, result.phoneChanged, result.notificationSent)
+      onSaved({ ...member, names: result.names, name: result.names.join(' / '), phone: `91${phone}` }, result.phoneChanged, result.notificationSent)
     } catch (caught) {
       const code = (caught as { code?: string })?.code
       setError(
@@ -261,9 +260,10 @@ function EditMemberSheet({
 
         <form onSubmit={save} className="mt-5 space-y-4">
           {error && <ErrorNote>{error}</ErrorNote>}
-          <Field label={t('dash.memberName')}>
-            <Input autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} />
-          </Field>
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium text-ink">{t('managedMembers.namesLabel')}</legend>
+            {names.map((name, index) => <Input key={`${member.names[index]}-${index}`} autoFocus={index === 0} required maxLength={100} value={name} aria-label={t('managedMembers.nameNumber', { count: index + 1 })} onChange={(event) => setNames((current) => current.map((value, nameIndex) => nameIndex === index ? event.target.value : value))} />)}
+          </fieldset>
           <Field label={t('dash.memberPhone')} hint={t('managedMembers.phoneHint')}>
             <PhoneInput value={phone} onChange={setPhone} />
           </Field>
@@ -279,10 +279,4 @@ function EditMemberSheet({
       </section>
     </div>
   )
-}
-
-function formatPhone(phone: string): string {
-  const local = phone.replace(/^91/, '')
-  if (local.length !== 10) return phone ? `+${phone}` : ''
-  return `+91 ${local.slice(0, 5)} ${local.slice(5)}`
 }

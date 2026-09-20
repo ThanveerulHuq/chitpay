@@ -5,6 +5,7 @@ import './index.css'
 import { I18nProvider } from '@/i18n'
 import App from './App.tsx'
 import { updateAppOnColdStart } from './pwaUpdate.ts'
+import { BrandingProvider } from '@/lib/branding'
 
 async function bootstrap() {
   await updateAppOnColdStart()
@@ -12,9 +13,11 @@ async function bootstrap() {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <BrowserRouter>
-        <I18nProvider>
-          <App />
-        </I18nProvider>
+        <BrandingProvider>
+          <I18nProvider>
+            <App />
+          </I18nProvider>
+        </BrandingProvider>
       </BrowserRouter>
     </StrictMode>,
   )

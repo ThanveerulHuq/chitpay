@@ -12,7 +12,7 @@ import {
   type UserDoc,
 } from '@chitapp/shared'
 import { auth, db } from './firebaseAdmin.js'
-import { assertAdminAccess, groupAdminLanguage, sendLoginAccessLink, syntheticEmail } from './auth.js'
+import { assertAdminAccess, groupAdminLanguage, sendLoginOtp, syntheticEmail } from './auth.js'
 import { toHttpsError } from './httpsError.js'
 import { writeUserMessage } from './messageLog.js'
 
@@ -26,6 +26,7 @@ interface ManagedGroupSummary {
 interface ManagedMemberSummary {
   uid: string
   name: string
+  names: string[]
   phone: string
   isAdmin: boolean
   groupCount: number
@@ -37,12 +38,13 @@ interface ManagedMemberSummary {
 interface MutableManagedMember {
   uid: string
   fallbackName: string
+  names: Map<string, string>
   groups: Map<string, ManagedGroupSummary>
 }
 
 interface UpdateManagedMemberProfileInput {
   uid: string
-  name: string
+  names: Array<{ currentName: string; name: string }>
   phone: string
 }
 
@@ -82,10 +84,17 @@ function isAuthEmailInUse(error: unknown): boolean {
 
 async function ownedGroups(adminUid: string): Promise<Map<string, GroupDoc>> {
   const profile = (await db.doc(`users/${adminUid}`).get()).data() as UserDoc | undefined
-  const field = profile?.providerId ? 'providerId' : 'adminUid'
-  const value = profile?.providerId ?? adminUid
-  const snap = await db.collection('groups').where(field, '==', value).get()
-  return new Map(snap.docs.map((doc) => [doc.id, doc.data() as GroupDoc]))
+  const snaps = profile?.providerId
+    ? await Promise.all([
+        db.collection('groups').where('providerId', '==', profile.providerId).get(),
+        db.collection('groups').where('adminUid', '==', adminUid).get(),
+      ])
+    : [await db.collection('groups').where('adminUid', '==', adminUid).get()]
+  const groups = new Map<string, GroupDoc>()
+  for (const snap of snaps) {
+    for (const doc of snap.docs) groups.set(doc.id, doc.data() as GroupDoc)
+  }
+  return groups
 }
 
 async function findManagedAnchor(adminUid: string, targetUid: string): Promise<ManagedAnchor> {
@@ -126,10 +135,54 @@ async function commitWrites(
   }
 }
 
+async function updateManagedAliases(
+  adminUid: string,
+  uid: string,
+  edits: Array<{ currentName: string; name: string }>,
+): Promise<void> {
+  const groups = await ownedGroups(adminUid)
+  const editMap = new Map(edits.map((edit) => [edit.currentName.trim().toLocaleLowerCase(), edit.name]))
+  const membershipSnap = await db.collectionGroup('members').where('uid', '==', uid).get()
+  const renamedIdsByGroup = new Map<string, Map<string, string>>()
+  const writes: Array<(batch: WriteBatch) => void> = []
+
+  for (const memberDoc of membershipSnap.docs) {
+    const groupId = memberDoc.ref.parent.parent?.id
+    if (!groupId || !groups.has(groupId)) continue
+    const member = memberDoc.data() as GroupMemberDoc
+    const nextName = editMap.get(member.displayName.trim().toLocaleLowerCase())
+    if (!nextName || nextName === member.displayName) continue
+    writes.push((batch) => batch.update(memberDoc.ref, { displayName: nextName }))
+    const ids = renamedIdsByGroup.get(groupId) ?? new Map<string, string>()
+    ids.set(memberDoc.id, nextName)
+    renamedIdsByGroup.set(groupId, ids)
+  }
+
+  for (const [groupId, renamedIds] of renamedIdsByGroup) {
+    const cycles = await db.collection(`groups/${groupId}/cycles`).get()
+    const boardRefs = cycles.docs.map((cycle) => cycle.ref.collection('board').doc('board'))
+    const boards = boardRefs.length ? await db.getAll(...boardRefs) : []
+    for (const boardSnap of boards) {
+      if (!boardSnap.exists) continue
+      const board = boardSnap.data() as BoardDoc
+      const entries = board.entries.map((entry) => {
+        const nextName = renamedIds.get(entry.membershipId)
+        return nextName ? { ...entry, name: nextName } : entry
+      })
+      if (entries.some((entry, index) => entry.name !== board.entries[index]?.name)) {
+        writes.push((batch) => batch.update(boardSnap.ref, { entries }))
+      }
+    }
+  }
+
+  await commitWrites(writes)
+}
+
 async function updateAccountProfile(
   uid: string,
   name: string,
   requestedPhone?: string,
+  syncMembershipNames = true,
 ): Promise<{ phoneChanged: boolean; phone: string; language?: Lang }> {
   const profileRef = db.doc(`users/${uid}`)
   const profileSnap = await profileRef.get()
@@ -154,9 +207,11 @@ async function updateAccountProfile(
     throw error
   }
 
-  const membershipSnap = await db.collectionGroup('members').where('uid', '==', uid).get()
+  const membershipSnap = syncMembershipNames
+    ? await db.collectionGroup('members').where('uid', '==', uid).get()
+    : null
   const membershipIdsByGroup = new Map<string, Set<string>>()
-  for (const memberDoc of membershipSnap.docs) {
+  for (const memberDoc of membershipSnap?.docs ?? []) {
     const groupId = memberDoc.ref.parent.parent?.id
     if (!groupId) continue
     const ids = membershipIdsByGroup.get(groupId) ?? new Set<string>()
@@ -175,7 +230,7 @@ async function updateAccountProfile(
 
   const writes: Array<(batch: WriteBatch) => void> = []
 
-  for (const memberDoc of membershipSnap.docs) {
+  for (const memberDoc of membershipSnap?.docs ?? []) {
     writes.push((batch) => batch.update(memberDoc.ref, { displayName: name }))
   }
 
@@ -235,8 +290,11 @@ export const listManagedMembers = onCall({ region: 'asia-south1', invoker: 'publ
         const current = members.get(member.uid) ?? {
           uid: member.uid,
           fallbackName: member.displayName,
+          names: new Map<string, string>(),
           groups: new Map<string, ManagedGroupSummary>(),
         }
+        const displayName = member.displayName.trim()
+        if (displayName) current.names.set(displayName.toLocaleLowerCase(), displayName)
         const groupSummary = current.groups.get(groupId) ?? {
           groupId,
           name: group.name,
@@ -256,9 +314,12 @@ export const listManagedMembers = onCall({ region: 'asia-south1', invoker: 'publ
     const result: ManagedMemberSummary[] = [...members.values()].map((member) => {
       const profile = profiles.get(member.uid)
       const memberGroups = [...member.groups.values()].sort((a, b) => a.name.localeCompare(b.name))
+      const names = [...member.names.values()]
+      const name = names.join(' / ') || profile?.name?.trim() || member.fallbackName
       return {
         uid: member.uid,
-        name: profile?.name?.trim() || member.fallbackName,
+        name,
+        names: names.length ? names : [name],
         phone: profile?.phone ?? '',
         isAdmin: profile?.roles?.includes('admin') ?? false,
         groupCount: memberGroups.length,
@@ -283,14 +344,22 @@ export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoke
     const input = req.data as UpdateManagedMemberProfileInput
     const uid = String(input?.uid ?? '').trim()
     if (!uid) throw new AppError('invalid_argument', 'Member is required.')
-    const name = normalizedName(input?.name)
+    const edits = Array.isArray(input?.names)
+      ? input.names.map((edit) => ({
+          currentName: normalizedName(edit?.currentName),
+          name: normalizedName(edit?.name),
+        }))
+      : []
+    if (edits.length === 0) throw new AppError('invalid_argument', 'At least one member name is required.')
+    const name = edits[0]!.name
     const phone = normalizedPhone(input?.phone)
     const anchor = await findManagedAnchor(adminUid, uid)
     const targetProfile = (await db.doc(`users/${uid}`).get()).data() as UserDoc | undefined
     if (targetProfile?.roles?.includes('admin')) {
       throw new AppError('permission_denied', 'Admin accounts cannot be edited from member management.')
     }
-    const update = await updateAccountProfile(uid, name, phone)
+    const update = await updateAccountProfile(uid, name, phone, false)
+    await updateManagedAliases(adminUid, uid, edits)
 
     let notificationSent = false
     let providerMessageId: string | null = null
@@ -302,18 +371,18 @@ export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoke
           update.language,
           group ? await groupAdminLanguage(group, adminUid) : undefined,
         )
-        const response = await sendLoginAccessLink(update.phone, name, language)
+        const response = await sendLoginOtp(update.phone, language)
         providerMessageId = response.providerMessageId
         notificationSent = true
       } catch (error) {
         notificationError = error instanceof Error ? error.message : String(error)
-        console.error('updated member access-link notification failed:', error)
+        console.error('updated member OTP notification failed:', error)
       }
 
       const log: MessageLogDoc = {
         recipientUid: uid,
         groupId: anchor.groupId,
-        template: 'login_access',
+        template: 'login_code',
         toPhone: update.phone,
         membershipId: anchor.membershipId,
         providerMessageId,
@@ -326,11 +395,11 @@ export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoke
       try {
         await writeUserMessage(log)
       } catch (error) {
-        console.error('updated member access-link message log failed:', error)
+        console.error('updated member OTP message log failed:', error)
       }
     }
 
-    return { ok: true, phoneChanged: update.phoneChanged, notificationSent }
+    return { ok: true, names: edits.map((edit) => edit.name), phoneChanged: update.phoneChanged, notificationSent }
   } catch (error) {
     throw toHttpsError(error, { fn: 'updateManagedMemberProfile', uid: req.auth?.uid, data: req.data })
   }

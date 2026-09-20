@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { hasStoredLoginEmail, verifyLoginLink } from '@/lib/auth'
 import { Button, ErrorNote, Field, PhoneInput } from '@/components/ui'
 import { useI18n } from '@/i18n'
+import { useBranding } from '@/lib/brandingContext'
 
 type Status = 'checking' | 'phone' | 'failed'
 
@@ -10,6 +11,7 @@ export default function LoginLinkPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { t } = useI18n()
+  const { iconSrc } = useBranding()
   const [status, setStatus] = useState<Status>(() => hasStoredLoginEmail() ? 'checking' : 'phone')
   const [phone, setPhone] = useState('')
   const [phoneError, setPhoneError] = useState(false)
@@ -41,7 +43,7 @@ export default function LoginLinkPage() {
   return (
     <div className="flex min-h-dvh items-center justify-center px-6 py-10">
       <div className="w-full max-w-sm text-center">
-        <img src="/brand/chitpay-login-artwork.png" alt="" className="mx-auto mb-6 h-32 w-32 object-contain" />
+        <img src={iconSrc} alt="" className="mx-auto mb-6 size-32 rounded-[1.75rem] object-contain" />
 
         {status === 'checking' && (
           <>

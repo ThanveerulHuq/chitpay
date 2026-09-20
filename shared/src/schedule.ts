@@ -1,4 +1,4 @@
-import type { CycleFrequency } from './types.js'
+import type { CycleFrequency, CycleStatus } from './types.js'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -56,4 +56,16 @@ export function generateCycleSchedule(
     if (frequency === 'biweekly') return addDays(startDate, index * 14)
     return addMonthsClamped(startDate, index)
   })
+}
+
+/**
+ * Start-date edits are allowed only until the first cycle starts, i.e. while
+ * cycle 1 still has status 'upcoming'. Once it becomes 'active'/'complete'
+ * the whole schedule is anchored and must not shift.
+ */
+export function isStartDateEditable(
+  cycles: readonly { cycleNumber: number; status: CycleStatus }[],
+): boolean {
+  const first = cycles.find((cycle) => cycle.cycleNumber === 1)
+  return first?.status === 'upcoming'
 }

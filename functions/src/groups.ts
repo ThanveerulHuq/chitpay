@@ -6,13 +6,15 @@ import {
   assertGroupWritable,
   contributionInPaise,
   generateCycleSchedule,
+  isStartDateEditable,
+  isValidIsoDate,
   normalizePhone,
   resolveMessageLanguage,
   resolveUnarchiveStatus,
 } from '@chitapp/shared'
 import type { BoardDoc, BoardEntry, CycleDoc, CycleFrequency, GroupDoc, GroupMemberDoc, MessageLogDoc, PaymentDoc, UserDoc } from '@chitapp/shared'
 import { toHttpsError } from './httpsError.js'
-import { syntheticEmail, assertAdminAccess, groupAdminLanguage, sendLoginAccessLink } from './auth.js'
+import { syntheticEmail, assertAdminAccess, groupAdminLanguage, sendLoginOtp } from './auth.js'
 import { writeUserMessage } from './messageLog.js'
 
 
@@ -32,6 +34,7 @@ interface UpdateGroupSettingsInput {
   name: string
   showOtherMembers: boolean
   showOtherMemberDues: boolean
+  startDate?: string
 }
 
 
@@ -136,7 +139,12 @@ export const updateGroupSettings = onCall({ region: 'asia-south1', invoker: 'pub
 
     const showOtherMembers = input.showOtherMembers
     const showOtherMemberDues = showOtherMembers && input.showOtherMemberDues
+    const rawStartDate = input?.startDate === undefined ? undefined : String(input.startDate)
+    if (rawStartDate !== undefined && !isValidIsoDate(rawStartDate)) {
+      throw new AppError('invalid_argument', 'Invalid start date.')
+    }
 
+    let savedStartDate: string | undefined
     await db.runTransaction(async (tx) => {
       const groupRef = db.doc(`groups/${groupId}`)
       const groupSnap = await tx.get(groupRef)
@@ -145,8 +153,47 @@ export const updateGroupSettings = onCall({ region: 'asia-south1', invoker: 'pub
       await assertAdminAccess(req.auth, group, tx)
       assertGroupWritable(group)
 
+      const reschedule = rawStartDate !== undefined && rawStartDate !== group.startDate
+      let schedule: string[] | null = null
+      let cyclesSnap = null
+      if (reschedule) {
+        cyclesSnap = await tx.get(groupRef.collection('cycles'))
+        const states = cyclesSnap.docs.map((cycleSnap) => {
+          const cycle = cycleSnap.data() as CycleDoc
+          const cycleNumber = Number.isInteger(cycle.cycleNumber)
+            ? cycle.cycleNumber
+            : Number(cycleSnap.id)
+          return { cycleNumber, status: cycle.status }
+        })
+        if (!isStartDateEditable(states)) {
+          throw new AppError('invalid_transition', 'Start date is locked after the first cycle starts.')
+        }
+        try {
+          schedule = generateCycleSchedule(rawStartDate, group.frequency, group.cycleCount)
+        } catch {
+          throw new AppError('invalid_argument', 'Invalid start date.')
+        }
+      }
+
       const membersSnap = await tx.get(groupRef.collection('members'))
-      tx.update(groupRef, { name, showOtherMembers, showOtherMemberDues })
+      tx.update(groupRef, {
+        name,
+        showOtherMembers,
+        showOtherMemberDues,
+        ...(reschedule ? { startDate: rawStartDate } : {}),
+      })
+      if (reschedule && cyclesSnap && schedule) {
+        for (const cycleSnap of cyclesSnap.docs) {
+          const cycle = cycleSnap.data() as CycleDoc
+          if (cycle.status !== 'upcoming') continue
+          const cycleNumber = Number.isInteger(cycle.cycleNumber)
+            ? cycle.cycleNumber
+            : Number(cycleSnap.id)
+          const plannedStartDate = schedule[cycleNumber - 1]
+          if (!plannedStartDate) continue
+          tx.update(cycleSnap.ref, { plannedStartDate })
+        }
+      }
       for (const memberSnap of membersSnap.docs) {
         const member = memberSnap.data() as GroupMemberDoc
         if (member.status !== 'active') continue
@@ -156,9 +203,10 @@ export const updateGroupSettings = onCall({ region: 'asia-south1', invoker: 'pub
           { merge: true },
         )
       }
+      savedStartDate = reschedule ? rawStartDate : group.startDate
     })
 
-    return { ok: true, name, showOtherMembers, showOtherMemberDues }
+    return { ok: true, name, showOtherMembers, showOtherMemberDues, startDate: savedStartDate }
   } catch (err) {
     throw toHttpsError(err, { fn: 'updateGroupSettings', uid: req.auth?.uid, data: req.data })
   }
@@ -227,7 +275,65 @@ interface AddMemberInput {
   name: string
   phone: string
   chitCount?: number
+  confirmExistingShares?: boolean
 }
+
+interface GroupPhoneInput {
+  groupId: string
+  phone: string
+}
+
+function uniqueNames(members: GroupMemberDoc[]): string[] {
+  const seen = new Set<string>()
+  const names: string[] = []
+  for (const member of members.sort((a, b) => (a.slotNo ?? 0) - (b.slotNo ?? 0))) {
+    const name = member.displayName.trim()
+    const key = name.toLocaleLowerCase()
+    if (!name || seen.has(key)) continue
+    seen.add(key)
+    names.push(name)
+  }
+  return names
+}
+
+export const inspectGroupMemberPhone = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const input = req.data as GroupPhoneInput
+    const groupId = String(input?.groupId ?? '')
+    if (!groupId) throw new AppError('invalid_argument', 'Group is required.')
+    const phone = normalizePhone(String(input?.phone ?? ''))
+    await assertAdminOf(req.auth, groupId)
+    const existingUser = await auth.getUserByEmail(syntheticEmail(phone)).catch(() => null)
+    if (!existingUser) return { exists: false, names: [], shareCount: 0 }
+    const slots = await db.collection(`groups/${groupId}/members`)
+      .where('uid', '==', existingUser.uid)
+      .where('status', '==', 'active')
+      .get()
+    const members = slots.docs.map((doc) => doc.data() as GroupMemberDoc)
+    return { exists: members.length > 0, names: uniqueNames(members), shareCount: members.length }
+  } catch (err) {
+    throw toHttpsError(err, { fn: 'inspectGroupMemberPhone', uid: req.auth?.uid, data: req.data })
+  }
+})
+
+export const listGroupMemberContacts = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
+  try {
+    const groupId = String((req.data as { groupId?: unknown })?.groupId ?? '')
+    if (!groupId) throw new AppError('invalid_argument', 'Group is required.')
+    await assertAdminOf(req.auth, groupId)
+    const memberSnap = await db.collection(`groups/${groupId}/members`).where('status', '==', 'active').get()
+    const uids = [...new Set(memberSnap.docs.map((doc) => (doc.data() as GroupMemberDoc).uid).filter(Boolean))]
+    const profiles = uids.length ? await db.getAll(...uids.map((uid) => db.doc(`users/${uid}`))) : []
+    return {
+      contacts: profiles.map((profile) => ({
+        uid: profile.id,
+        phone: String((profile.data() as UserDoc | undefined)?.phone ?? ''),
+      })),
+    }
+  } catch (err) {
+    throw toHttpsError(err, { fn: 'listGroupMemberContacts', uid: req.auth?.uid, data: req.data })
+  }
+})
 
 export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
   try {
@@ -248,24 +354,9 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       throw new AppError('invalid_argument', 'Number of shares must be between 1 and 100.')
     }
 
-    // Duplicate-slot guard: same person already has an active slot in this group.
     const existingUser = await auth
       .getUserByEmail(syntheticEmail(phone))
       .catch(() => null)
-    if (existingUser) {
-      const dup = await db
-        .collection(`groups/${input.groupId}/members`)
-        .where('uid', '==', existingUser.uid)
-        .where('status', '==', 'active')
-        .limit(1)
-        .get()
-      if (!dup.empty) {
-        throw new AppError(
-          'already_exists',
-          'This number is already a member of this group. Edit their existing share count instead.',
-        )
-      }
-    }
 
     let uid: string
     let isNewUser: boolean
@@ -296,6 +387,16 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       assertGroupWritable(currentGroup)
       const memberCount = currentGroup.memberCount ?? 0
       const allMembersSnap = await tx.get(groupRef.collection('members'))
+      const existingActiveSlots = allMembersSnap.docs.filter((memberDoc) => {
+        const member = memberDoc.data() as GroupMemberDoc
+        return member.uid === uid && member.status === 'active'
+      })
+      if (existingActiveSlots.length > 0 && input.confirmExistingShares !== true) {
+        throw new AppError('invalid_transition', 'Confirm that you want to add shares to this existing mobile number.')
+      }
+      if (existingActiveSlots.length + chitCount > 100) {
+        throw new AppError('invalid_argument', 'A member cannot have more than 100 shares in a group.')
+      }
       const highestSlotNo = allMembersSnap.docs.reduce((highest, memberDoc) => {
         const member = memberDoc.data() as GroupMemberDoc
         return Math.max(highest, member.slotNo ?? 0)
@@ -361,6 +462,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       for (const { memberRef } of slots) {
         tx.set(db.doc(`users/${uid}/memberships/${memberRef.id}`), {
           groupId: input.groupId,
+          ...(currentGroup.providerId ? { providerId: currentGroup.providerId } : {}),
           groupName: group.name,
           membershipId: memberRef.id,
           contributionAmountInPaise: contributionInPaise(currentGroup),
@@ -386,18 +488,18 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       const userSnap = await db.doc(`users/${uid}`).get()
       const user = userSnap.data() as UserDoc | undefined
       const language = resolveMessageLanguage(user?.language, await groupAdminLanguage(group, adminUid))
-      const response = await sendLoginAccessLink(phone, name, language)
+      const response = await sendLoginOtp(phone, language)
       providerMessageId = response.providerMessageId
       notificationSent = true
     } catch (sendError) {
       notificationError = sendError instanceof Error ? sendError.message : String(sendError)
-      console.error('member access-link notification failed:', sendError)
+      console.error('member OTP notification failed:', sendError)
     }
 
     const messageLog: MessageLogDoc = {
       recipientUid: uid,
       groupId: input.groupId,
-      template: 'login_access',
+      template: 'login_code',
       toPhone: phone,
       membershipId: result.membershipIds[0]!,
       providerMessageId,
@@ -410,7 +512,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
     try {
       await writeUserMessage(messageLog)
     } catch (logError) {
-      console.error('member access-link message log failed:', logError)
+      console.error('member OTP message log failed:', logError)
     }
 
     return {
@@ -497,6 +599,7 @@ export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'p
           })
           tx.set(db.doc(`users/${member.uid}/memberships/${slot.ref.id}`), {
             groupId,
+            ...(group.providerId ? { providerId: group.providerId } : {}),
             groupName: group.name,
             membershipId: slot.ref.id,
             contributionAmountInPaise: contributionInPaise(group),

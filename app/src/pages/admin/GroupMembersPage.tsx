@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bell, MagnifyingGlass, Minus, Money, PencilSimple, Plus, X } from '@phosphor-icons/react'
-import { callSendMemberReminder, callUpdateMemberChitCount, fetchBoard, fetchGroupPaymentRecords } from '@/lib/api'
+import { callListGroupMemberContacts, callSendMemberReminder, callUpdateMemberChitCount, fetchBoard, fetchGroupPaymentRecords } from '@/lib/api'
 import { contributionInPaise, formatMinor } from '@shared'
 import type { GroupMemberDoc } from '@shared'
 import { AddMemberSection } from '@/pages/admin/GroupDashboardPage'
@@ -13,6 +13,7 @@ import { useBodyLock } from '@/lib/useBodyLock'
 interface MemberPerson {
   uid: string
   name: string
+  names: string[]
   slots: { id: string; data: GroupMemberDoc }[]
 }
 
@@ -35,6 +36,7 @@ function MembersContent() {
   const [busyMember, setBusyMember] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingRefresh, setPendingRefresh] = useState(0)
+  const [phonesByUid, setPhonesByUid] = useState<Map<string, string>>(new Map())
   const activeCycleNumbers = useMemo(
     () => cycles
       .filter(({ data }) => data.status === 'active')
@@ -42,6 +44,21 @@ function MembersContent() {
       .sort((a, b) => a - b),
     [cycles],
   )
+
+  useEffect(() => {
+    if (isMemberView) {
+      return
+    }
+    let cancelled = false
+    void callListGroupMemberContacts(groupId).then((contacts) => {
+      if (!cancelled) setPhonesByUid(new Map(contacts.map((contact) => [contact.uid, contact.phone])))
+    }).catch(() => {
+      if (!cancelled) setPhonesByUid(new Map())
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [groupId, isMemberView, members])
 
   useEffect(() => {
     let cancelled = false
@@ -112,13 +129,22 @@ function MembersContent() {
     for (const slot of members) {
       if (slot.data.status !== 'active') continue
       if (isMemberView && !showOtherMembers && !ownMembershipIds.has(slot.id)) continue
-      const person = grouped.get(slot.data.uid) ?? { uid: slot.data.uid, name: slot.data.displayName, slots: [] }
+      const person = grouped.get(slot.data.uid) ?? { uid: slot.data.uid, name: '', names: [], slots: [] }
+      if (!person.names.some((name) => name.localeCompare(slot.data.displayName, undefined, { sensitivity: 'accent' }) === 0)) {
+        person.names.push(slot.data.displayName)
+        person.name = person.names.join(' / ')
+      }
       person.slots.push(slot)
       grouped.set(slot.data.uid, person)
     }
     return [...grouped.values()]
   }, [isMemberView, members, ownMembershipIds, showOtherMembers])
-  const visible = people.filter((person) => person.name.toLowerCase().includes(search.toLowerCase()))
+  const normalizedSearch = search.trim().toLowerCase()
+  const phoneSearch = search.replace(/\D/g, '')
+  const visible = people.filter((person) => (
+    person.name.toLowerCase().includes(normalizedSearch)
+    || (!isMemberView && phoneSearch.length > 0 && (phonesByUid.get(person.uid) ?? '').includes(phoneSearch))
+  ))
 
   return (
     <>

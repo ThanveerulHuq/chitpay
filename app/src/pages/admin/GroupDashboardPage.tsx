@@ -1,12 +1,13 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Bank, CaretRight, DotsThreeOutline, HandCoins, MagnifyingGlass, Minus, Money, Plus, QrCode, Trophy, X } from '@phosphor-icons/react'
-import { callAddMember, callConfirmSelection, callRecordPayout } from '@/lib/api'
+import { AddressBook, Bank, CaretRight, DotsThreeOutline, HandCoins, MagnifyingGlass, Minus, Money, Plus, QrCode, Trophy, X } from '@phosphor-icons/react'
+import { callAddMember, callConfirmSelection, callInspectGroupMemberPhone, callRecordPayout, type ExistingGroupMemberPhone } from '@/lib/api'
 import { contributionInPaise, formatMinor, toMinor } from '@shared'
 import type { BoardEntry, CycleDoc, GroupDoc, GroupMemberDoc, PaymentMethod } from '@shared'
 import { Button, ErrorNote, Field, Input, PhoneInput } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { useBodyLock } from '@/lib/useBodyLock'
+import { pickMobileContact, supportsContactPicker } from '@/lib/contactPicker'
 
 export default function GroupDashboardPage() { return <Navigate to="/" replace /> }
 
@@ -165,12 +166,58 @@ export function AddMemberSection({ groupId, onAdded }: { groupId: string; onAdde
   const [chitCount, setChitCount] = useState(1)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [existing, setExisting] = useState<ExistingGroupMemberPhone | null>(null)
+  const [confirmedExisting, setConfirmedExisting] = useState(false)
+  const [inspecting, setInspecting] = useState(false)
+  const [phoneOptions, setPhoneOptions] = useState<string[]>([])
+  const [contactPickerSupported] = useState(supportsContactPicker)
 
-  function isDuplicateMember(nextError: unknown) {
-    const firebaseError = nextError as { code?: string; details?: { code?: string } }
-    return firebaseError.code === 'functions/already-exists'
-      || firebaseError.code === 'already-exists'
-      || firebaseError.details?.code === 'already_exists'
+  useEffect(() => {
+    if (!open || phone.length !== 10) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      void callInspectGroupMemberPhone({ groupId, phone: `+91${phone}` })
+        .then((result) => {
+          if (!cancelled) setExisting(result)
+        })
+        .catch(() => {
+          if (!cancelled) setExisting(null)
+        })
+        .finally(() => {
+          if (!cancelled) setInspecting(false)
+        })
+    }, 300)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [groupId, open, phone])
+
+  function changePhone(value: string) {
+    setPhone(value)
+    setPhoneOptions([])
+    setExisting(null)
+    setConfirmedExisting(false)
+    setInspecting(value.length === 10)
+  }
+
+  async function selectContact() {
+    setError(null)
+    try {
+      const contact = await pickMobileContact()
+      if (!contact) return
+      if (contact.name) setName(contact.name)
+      if (contact.phones.length === 1) {
+        changePhone(contact.phones[0]!)
+      } else if (contact.phones.length > 1) {
+        changePhone('')
+        setPhoneOptions(contact.phones)
+      } else {
+        setError(t('dash.contactNoValidPhone'))
+      }
+    } catch (caught) {
+      if ((caught as { name?: string }).name !== 'AbortError') setError(t('dash.contactPickerError'))
+    }
   }
 
   async function save() {
@@ -180,14 +227,23 @@ export function AddMemberSection({ groupId, onAdded }: { groupId: string; onAdde
     setBusy(true)
     setError(null)
     try {
-      await callAddMember({ groupId, name: trimmedName, phone: `+91${phone}`, chitCount })
+      await callAddMember({
+        groupId,
+        name: trimmedName,
+        phone: `+91${phone}`,
+        chitCount,
+        confirmExistingShares: confirmedExisting,
+      })
       setOpen(false)
       setName('')
       setPhone('')
+      setPhoneOptions([])
+      setExisting(null)
+      setConfirmedExisting(false)
       setChitCount(1)
       onAdded()
     } catch (nextError) {
-      setError(isDuplicateMember(nextError) ? t('dash.duplicateMemberEditHint') : (nextError as Error).message)
+      setError((nextError as Error).message)
     } finally {
       setBusy(false)
     }
@@ -204,6 +260,25 @@ export function AddMemberSection({ groupId, onAdded }: { groupId: string; onAdde
 
   return <>
     {!open && <Button variant="secondary" onClick={() => setOpen(true)} className="w-full">{t('dash.addMember')}</Button>}
-    {open && <form onSubmit={add} className="space-y-4 rounded-2xl border border-line bg-surface p-5"><h2 className="font-semibold">{t('dash.addMember')}</h2>{error && <ErrorNote>{error}</ErrorNote>}<Field label={t('dash.memberName')}><Input required value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label={t('dash.memberPhone')} hint={t('dash.memberPhoneHint')}><PhoneInput value={phone} onChange={setPhone} /></Field><fieldset><legend className="text-sm font-medium text-ink">{t('dash.chitCount')}</legend><div className="mt-2 grid w-36 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-xl border border-line bg-surface"><button type="button" onClick={() => changeChitCount(chitCount - 1)} disabled={chitCount === 1} aria-label={t('dash.decreaseChitCount')} className="grid h-10 place-items-center border-r border-line text-ink transition-colors hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Minus size={16} weight="bold" /></button><output aria-live="polite" className="grid h-10 place-items-center font-bold tabular-nums text-ink">{chitCount}</output><button type="button" onClick={() => changeChitCount(chitCount + 1)} disabled={chitCount === 100} aria-label={t('dash.increaseChitCount')} className="grid h-10 place-items-center border-l border-line text-ink transition-colors hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Plus size={16} weight="bold" /></button></div><span className="mt-1 block text-xs text-muted">{t('dash.chitCountHint')}</span></fieldset><div className="flex gap-3"><Button type="button" variant="secondary" onClick={() => setOpen(false)} className="flex-1">{t('common.cancel')}</Button><Button type="submit" disabled={busy || !name.trim() || phone.length !== 10} className="flex-1">{busy ? t('common.adding') : t('common.add')}</Button></div></form>}
+    {open && <form onSubmit={add} className="space-y-4 rounded-2xl border border-line bg-surface p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-semibold">{t('dash.addMember')}</h2>
+        {contactPickerSupported && <Button type="button" variant="secondary" onClick={() => void selectContact()} className="px-3 py-2 text-sm"><AddressBook size={18} />{t('dash.selectContact')}</Button>}
+      </div>
+      {error && <ErrorNote>{error}</ErrorNote>}
+      <Field label={t('dash.memberName')}><Input required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} /></Field>
+      <Field label={t('dash.memberPhone')} hint={t('dash.memberPhoneHint')}><PhoneInput value={phone} onChange={changePhone} /></Field>
+      {phoneOptions.length > 1 && <fieldset className="rounded-2xl bg-sunken p-3">
+        <legend className="px-1 text-sm font-medium text-ink">{t('dash.chooseContactNumber')}</legend>
+        <div className="mt-2 space-y-2">{phoneOptions.map((option) => <label key={option} className="flex cursor-pointer items-center gap-3 rounded-xl bg-surface px-3 py-2 text-sm"><input type="radio" name="contact-phone" value={option} checked={phone === option} onChange={() => changePhone(option)} className="accent-accent" /><span>+91 {option.slice(0, 5)} {option.slice(5)}</span></label>)}</div>
+      </fieldset>}
+      {inspecting && <p className="text-xs text-muted">{t('dash.checkingMember')}</p>}
+      {existing?.exists && <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-sunken p-3.5 text-sm text-ink">
+        <input type="checkbox" checked={confirmedExisting} onChange={(event) => setConfirmedExisting(event.target.checked)} className="mt-0.5 size-5 shrink-0 accent-accent" />
+        <span>{t('dash.existingSharesConfirm', { names: existing.names.join(' / '), count: existing.shareCount, addCount: chitCount })}</span>
+      </label>}
+      <fieldset><legend className="text-sm font-medium text-ink">{t('dash.chitCount')}</legend><div className="mt-2 grid w-36 grid-cols-[2.5rem_1fr_2.5rem] overflow-hidden rounded-xl border border-line bg-surface"><button type="button" onClick={() => changeChitCount(chitCount - 1)} disabled={chitCount === 1} aria-label={t('dash.decreaseChitCount')} className="grid h-10 place-items-center border-r border-line text-ink transition-colors hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Minus size={16} weight="bold" /></button><output aria-live="polite" className="grid h-10 place-items-center font-bold tabular-nums text-ink">{chitCount}</output><button type="button" onClick={() => changeChitCount(chitCount + 1)} disabled={chitCount === 100} aria-label={t('dash.increaseChitCount')} className="grid h-10 place-items-center border-l border-line text-ink transition-colors hover:bg-sunken disabled:pointer-events-none disabled:text-faint"><Plus size={16} weight="bold" /></button></div><span className="mt-1 block text-xs text-muted">{t('dash.chitCountHint')}</span></fieldset>
+      <div className="flex gap-3"><Button type="button" variant="secondary" onClick={() => setOpen(false)} className="flex-1">{t('common.cancel')}</Button><Button type="submit" disabled={busy || inspecting || !name.trim() || phone.length !== 10 || Boolean(existing?.exists && !confirmedExisting)} className="flex-1">{busy ? t('common.adding') : t('common.add')}</Button></div>
+    </form>}
   </>
 }

@@ -7,6 +7,7 @@ import { Chip, Page, Button } from '@/components/ui'
 import { GroupsListLoadingScreen } from '@/components/LoadingScreens'
 import { useT } from '@/i18n'
 import { groupPath, groupsPath, settingsPath, useExperience } from '@/lib/roleRoutes'
+import { useBranding } from '@/lib/brandingContext'
 
 type ListEntry =
   | { kind: 'admin'; id: string; name: string; amountInPaise: number; memberCount: number; completedCycleCount: number; cycleCount: number }
@@ -15,6 +16,7 @@ type ListEntry =
 export default function GroupsListPage() {
   const t = useT()
   const experience = useExperience()
+  const { iconSrc } = useBranding()
   const [allEntries, setAllEntries] = useState<ListEntry[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -61,7 +63,7 @@ export default function GroupsListPage() {
       <header className="sticky top-0 z-30 -mx-4 mb-5 flex items-center justify-between gap-3 border-b border-line/50 bg-bg/90 px-4 py-3.5 backdrop-blur pt-[max(0.875rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-2.5">
           <img
-            src="/brand/chitpay-app-icon-hands.png"
+            src={iconSrc}
             alt=""
             className="size-8 rounded-xl object-contain shadow-xs"
           />

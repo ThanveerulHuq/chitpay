@@ -13,10 +13,18 @@ export interface UserDoc {
 
 export type ProviderStatus = 'active' | 'inactive'
 
+export interface ProviderAppIcon {
+  contentType: 'image/webp'
+  image192: string
+  image512: string
+  version: string
+}
+
 export interface ProviderDoc {
   name: string
   language: Lang
   status: ProviderStatus
+  appIcon?: ProviderAppIcon
   createdBy: string
   createdAt: number
   updatedAt?: number
@@ -150,6 +158,7 @@ export interface BoardDoc {
 
 export interface MembershipMirrorDoc {
   groupId: string
+  providerId?: string
   groupName: string
   membershipId: string
   contributionAmountInPaise: number
