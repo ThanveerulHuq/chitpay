@@ -308,7 +308,6 @@ export const en = {
   'settings.title': 'Settings',
   'settings.language': 'Language',
   'settings.languageDesc': 'Choose the language for the app and your WhatsApp messages',
-  'settings.providerLanguageDesc': 'Shared by all provider admins and used as the fallback for WhatsApp messages',
   'settings.english': 'English',
   'settings.tamil': 'தமிழ் (Tamil)',
   'settings.account': 'Account',

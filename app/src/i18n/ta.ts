@@ -310,7 +310,6 @@ export const ta = {
   'settings.title': 'அமைப்புகள்',
   'settings.language': 'மொழி',
   'settings.languageDesc': 'பயன்பாடு மற்றும் WhatsApp செய்திகளுக்கான மொழியைத் தேர்ந்தெடுக்கவும்',
-  'settings.providerLanguageDesc': 'அனைத்து நிறுவன நிர்வாகிகளும் பகிர்ந்து பயன்படுத்தும் மொழி; WhatsApp செய்திகளுக்கும் இயல்புநிலையாகும்',
   'settings.english': 'English',
   'settings.tamil': 'தமிழ் (Tamil)',
   'settings.account': 'கணக்கு',

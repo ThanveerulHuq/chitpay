@@ -60,9 +60,9 @@ export default function SettingsPage() {
             <h2 className="text-xs font-semibold uppercase tracking-wider text-faint">
               {t('settings.language')}
             </h2>
-            <p className="mt-1 text-sm text-muted">
-              {isAdmin && experience === 'admin' ? t('settings.providerLanguageDesc') : t('settings.languageDesc')}
-            </p>
+            {!(isAdmin && experience === 'admin') && (
+              <p className="mt-1 text-sm text-muted">{t('settings.languageDesc')}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
