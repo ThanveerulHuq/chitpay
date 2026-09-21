@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react'
 
 export interface BrandingValue {
   iconSrc: string
+  providerName?: string
 }
 
 export const BrandingContext = createContext<BrandingValue>({

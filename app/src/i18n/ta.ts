@@ -37,6 +37,7 @@ export const ta = {
 
   // Login
   'login.mobileNumber': 'கைபேசி எண்',
+  'login.providerName': 'நிறுவனம்: {name}',
   'login.otp': 'ஒருமுறை கடவுச்சொல்',
   'login.tenDigitAria': 'பத்து இலக்க கைபேசி எண்',
   'login.codeSentTo': '+91 {phone}-க்கு அனுப்பப்பட்ட OTP',

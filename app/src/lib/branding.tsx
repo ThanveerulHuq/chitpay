@@ -11,7 +11,8 @@ const PROVIDER_COOKIE = 'chitapp_provider_id'
 
 interface CachedBranding {
   providerId: string
-  appIcon: ProviderAppIcon
+  providerName?: string
+  appIcon?: ProviderAppIcon
 }
 
 function iconSrc(icon: ProviderAppIcon): string {
@@ -21,7 +22,7 @@ function iconSrc(icon: ProviderAppIcon): string {
 function readCachedBranding(): CachedBranding | null {
   try {
     const cached = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as CachedBranding | null
-    return cached?.providerId && cached.appIcon?.image192 ? cached : null
+    return cached?.providerId && (cached.providerName || cached.appIcon?.image192) ? cached : null
   } catch {
     return null
   }
@@ -84,8 +85,8 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     }
     return onSnapshot(doc(db, 'providers', providerId), (snapshot) => {
       const provider = snapshot.data() as ProviderDoc | undefined
-      const next = provider?.status === 'active' && provider.appIcon
-        ? { providerId, appIcon: provider.appIcon }
+      const next = provider?.status === 'active'
+        ? { providerId, providerName: provider.name, appIcon: provider.appIcon }
         : null
       setBranding(next)
       try {
@@ -103,12 +104,13 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-    if (favicon) favicon.href = activeBranding ? iconSrc(activeBranding.appIcon) : FALLBACK_ICON
+    if (favicon) favicon.href = activeBranding?.appIcon ? iconSrc(activeBranding.appIcon) : FALLBACK_ICON
   }, [activeBranding])
 
   return (
     <BrandingContext.Provider value={{
-      iconSrc: activeBranding ? iconSrc(activeBranding.appIcon) : FALLBACK_ICON,
+      iconSrc: activeBranding?.appIcon ? iconSrc(activeBranding.appIcon) : FALLBACK_ICON,
+      providerName: activeBranding?.providerName,
     }}>
       {children}
     </BrandingContext.Provider>

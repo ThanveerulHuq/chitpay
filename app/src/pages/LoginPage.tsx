@@ -12,7 +12,7 @@ type Step = 'phone' | 'code'
 
 export default function LoginPage() {
   const { t, lang } = useI18n()
-  const { iconSrc } = useBranding()
+  const { iconSrc, providerName } = useBranding()
   const [mode, setMode] = useState<Mode>('otp')
   const [step, setStep] = useState<Step>('phone')
   const [phone, setPhone] = useState('')
@@ -109,6 +109,11 @@ export default function LoginPage() {
         <img src={iconSrc} alt="" className="mx-auto mb-6 size-40 rounded-[2rem] object-contain" />
         <h1 className="text-center text-3xl font-bold tracking-tight">{t('brand.name')}</h1>
         <p className="mt-1 text-center text-muted">{t('brand.tagline')}</p>
+        {providerName && (
+          <p className="mt-3 text-center text-sm font-semibold text-ink">
+            {t('login.providerName', { name: providerName })}
+          </p>
+        )}
 
         <div className="mt-10">
           {error && <ErrorNote>{error}</ErrorNote>}

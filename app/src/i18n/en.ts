@@ -35,6 +35,7 @@ export const en = {
 
   // Login
   'login.mobileNumber': 'Mobile number',
+  'login.providerName': 'Provider: {name}',
   'login.otp': 'One-time password',
   'login.tenDigitAria': 'Ten-digit mobile number',
   'login.codeSentTo': 'Code sent to +91 {phone}',
