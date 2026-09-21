@@ -304,6 +304,14 @@ export const en = {
   'payments.empty': 'No payments yet',
   'memberView.yourPayments': 'Your payments',
 
+  // Provider Reports
+  'providerReports.title': 'Provider reports',
+  'providerReports.allGroups': 'All groups',
+  'providerReports.groupFilter': 'Group',
+  'providerReports.loadError': 'Could not load provider reports.',
+  'providerReports.empty': 'No matching payments or payouts.',
+  'providerReports.openGroupReport': 'Open the report for {group}',
+
   // Settings
   'settings.title': 'Settings',
   'settings.language': 'Language',
@@ -371,7 +379,6 @@ export const en = {
   'managedMembers.editDescription': 'Update this person’s account details.',
   'managedMembers.namesLabel': 'Names on this account',
   'managedMembers.nameNumber': 'Member name {count}',
-  'managedMembers.accountWideWarning': 'Name changes apply to the groups your provider manages. Changing the login number is account-wide, signs the member out, and sends a new WhatsApp login code.',
   'managedMembers.phoneHint': 'This becomes the member’s login number.',
   'managedMembers.groupsLabel': 'Groups you manage',
   'managedMembers.phoneInUse': 'That mobile number already belongs to another account.',

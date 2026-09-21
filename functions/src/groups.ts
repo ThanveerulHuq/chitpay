@@ -81,7 +81,7 @@ export const createGroup = onCall({ region: 'asia-south1', invoker: 'public' }, 
     }
 
     const group: GroupDoc = {
-      ...(adminProfile.providerId ? { providerId: adminProfile.providerId } : { adminUid: uid }),
+      providerId: adminProfile.providerId,
       name,
       contributionAmountInPaise,
       frequency,
@@ -337,8 +337,8 @@ export const listGroupMemberContacts = onCall({ region: 'asia-south1', invoker: 
 
 export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
   try {
-    const adminUid = req.auth?.uid
-    if (!adminUid) throw new AppError('unauthenticated')
+    const actorUid = req.auth?.uid
+    if (!actorUid) throw new AppError('unauthenticated')
     const input = req.data as AddMemberInput
 
     const group = await assertAdminOf(req.auth, String(input.groupId ?? ''))
@@ -462,7 +462,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       for (const { memberRef } of slots) {
         tx.set(db.doc(`users/${uid}/memberships/${memberRef.id}`), {
           groupId: input.groupId,
-          ...(currentGroup.providerId ? { providerId: currentGroup.providerId } : {}),
+          providerId: currentGroup.providerId,
           groupName: group.name,
           membershipId: memberRef.id,
           contributionAmountInPaise: contributionInPaise(currentGroup),
@@ -487,7 +487,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
     try {
       const userSnap = await db.doc(`users/${uid}`).get()
       const user = userSnap.data() as UserDoc | undefined
-      const language = resolveMessageLanguage(user?.language, await groupAdminLanguage(group, adminUid))
+      const language = resolveMessageLanguage(user?.language, await groupAdminLanguage(group))
       const response = await sendLoginOtp(phone, language)
       providerMessageId = response.providerMessageId
       notificationSent = true
@@ -505,7 +505,7 @@ export const addMember = onCall({ region: 'asia-south1', invoker: 'public' }, as
       providerMessageId,
       status: notificationSent ? 'sent' : 'failed',
       error: notificationError,
-      sentBy: adminUid,
+      sentBy: actorUid,
       createdAt: FieldValue.serverTimestamp() as unknown as number,
       updatedAt: FieldValue.serverTimestamp() as unknown as number,
     }
@@ -599,7 +599,7 @@ export const updateMemberChitCount = onCall({ region: 'asia-south1', invoker: 'p
           })
           tx.set(db.doc(`users/${member.uid}/memberships/${slot.ref.id}`), {
             groupId,
-            ...(group.providerId ? { providerId: group.providerId } : {}),
+            providerId: group.providerId,
             groupName: group.name,
             membershipId: slot.ref.id,
             contributionAmountInPaise: contributionInPaise(group),

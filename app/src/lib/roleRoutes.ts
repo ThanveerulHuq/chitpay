@@ -15,6 +15,10 @@ export function groupPath(experience: Experience, groupId: string, section = 'me
   return `${groupsPath(experience)}/${groupId}/${section}`
 }
 
+export function providerReportsPath(): string {
+  return '/admin/reports'
+}
+
 export function settingsPath(experience: Experience): string {
   return `/${experience}/settings`
 }

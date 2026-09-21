@@ -16,6 +16,7 @@ const GroupMembersPage = lazy(() => import('@/pages/admin/GroupMembersPage'))
 const GroupCyclesPage = lazy(() => import('@/pages/admin/GroupCyclesPage'))
 const GroupCycleDetailPage = lazy(() => import('@/pages/admin/GroupCycleDetailPage'))
 const GroupReportsPage = lazy(() => import('@/pages/admin/GroupReportsPage'))
+const ProviderReportsPage = lazy(() => import('@/pages/admin/ProviderReportsPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const ArchivedGroupsPage = lazy(() => import('@/pages/admin/ArchivedGroupsPage'))
 const ManagedMembersPage = lazy(() => import('@/pages/admin/ManagedMembersPage'))
@@ -88,6 +89,7 @@ export default function App() {
             <Route path="groups/:groupId/cycles/:cycleNumber" element={<GroupCycleDetailPage />} />
             <Route path="groups/:groupId/reports" element={<GroupReportsPage />} />
             <Route path="groups/:groupId/payments" element={<GroupPaymentsRedirect />} />
+            <Route path="reports" element={<ProviderReportsPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="settings/archived-groups" element={<ArchivedGroupsPage />} />
             <Route path="settings/members" element={<ManagedMembersPage />} />

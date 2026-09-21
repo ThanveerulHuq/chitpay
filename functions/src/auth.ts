@@ -97,7 +97,7 @@ export async function assertProviderAdmin(
   requestAuth: { uid: string } | undefined,
   providerId: string,
   transaction?: Transaction,
-): Promise<UserDoc> {
+): Promise<UserDoc & { providerId: string }> {
   const profile = await adminProfile(requestAuth, transaction)
   if (!requestAuth || profile.providerId !== providerId) throw new AppError('permission_denied')
   const membershipRef = db.doc(`providers/${providerId}/admins/${requestAuth.uid}`)
@@ -109,23 +109,18 @@ export async function assertProviderAdmin(
   if (!membershipSnap.exists || !providerSnap.exists || provider?.status !== 'active') {
     throw new AppError('permission_denied')
   }
-  return profile
+  return profile as UserDoc & { providerId: string }
 }
 
-/**
- * Provider-aware authorization with a temporary legacy owner fallback.
- * Remove the adminUid branch after the production migration is verified.
- */
 export async function assertAdminAccess(
   requestAuth: { uid: string } | undefined,
   group?: GroupDoc,
   transaction?: Transaction,
-): Promise<UserDoc> {
-  if (group?.providerId) return assertProviderAdmin(requestAuth, group.providerId, transaction)
+): Promise<UserDoc & { providerId: string }> {
+  if (group) return assertProviderAdmin(requestAuth, group.providerId, transaction)
   const profile = await adminProfile(requestAuth, transaction)
-  if (!group && profile.providerId) return assertProviderAdmin(requestAuth, profile.providerId, transaction)
-  if (group && (!group.adminUid || group.adminUid !== requestAuth?.uid)) throw new AppError('permission_denied')
-  return profile
+  if (!profile.providerId) throw new AppError('permission_denied')
+  return assertProviderAdmin(requestAuth, profile.providerId, transaction)
 }
 
 export async function providerLanguage(providerId: string): Promise<Lang | undefined> {
@@ -133,10 +128,8 @@ export async function providerLanguage(providerId: string): Promise<Lang | undef
   return provider?.language
 }
 
-export async function groupAdminLanguage(group: GroupDoc, actingUid: string): Promise<Lang | undefined> {
-  if (group.providerId) return providerLanguage(group.providerId)
-  const profile = (await db.doc(`users/${actingUid}`).get()).data() as UserDoc | undefined
-  return profile?.language
+export async function groupAdminLanguage(group: GroupDoc): Promise<Lang | undefined> {
+  return providerLanguage(group.providerId)
 }
 
 /** Finds or creates the auth user + users/{uid} doc for a phone. */

@@ -11,32 +11,12 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
+      manifest: false,
       includeAssets: [
         'brand/chitpay-app-icon-hands.png',
         'chitpay-pwa-192.png',
         'chitpay-pwa-512.png',
       ],
-      manifest: {
-        id: '/',
-        name: 'ChitPay',
-        short_name: 'ChitPay',
-        description: 'Collect. Select. Manage.',
-        theme_color: '#059669',
-        background_color: '#fafaf9',
-        display: 'standalone',
-        scope: '/',
-        start_url: '/',
-        icons: [
-          { src: '/chitpay-pwa-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/chitpay-pwa-512.png', sizes: '512x512', type: 'image/png' },
-          {
-            src: '/chitpay-pwa-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-        ],
-      },
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],

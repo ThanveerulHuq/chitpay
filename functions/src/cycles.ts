@@ -287,7 +287,7 @@ export const sendReminder = onCall({ region: 'asia-south1', invoker: 'public' },
     if (!board) throw new AppError('not_found')
 
     const template = 'pending_payments_reminder'
-    const adminLanguage = await groupAdminLanguage(group, uid)
+    const adminLanguage = await groupAdminLanguage(group)
 
     let targets = board.entries.filter((e) => e.status === 'pending')
     if (membershipId) targets = targets.filter((e) => e.membershipId === membershipId)
@@ -401,7 +401,7 @@ export const sendMemberReminder = onCall({ region: 'asia-south1', invoker: 'publ
     let error: string | null = null
     let providerMessageId: string | null = null
     try {
-      const language = resolveMessageLanguage(user.language, await groupAdminLanguage(group, uid))
+      const language = resolveMessageLanguage(user.language, await groupAdminLanguage(group))
       const res = await messaging.sendTemplate(user.phone, template, {
         member_name: memberNames.join(' / ') || member.displayName,
         group_name: group.name,

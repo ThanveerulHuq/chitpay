@@ -213,18 +213,8 @@ export async function fetchMyGroups(): Promise<{ id: string; data: GroupDoc }[]>
   if (!user) return []
   const profileSnap = await getDoc(doc(db, 'users', user.uid))
   const profile = profileSnap.data() as UserDoc | undefined
-  if (profile?.providerId) {
-    const providerSnap = await getDocs(query(collection(db, 'groups'), where('providerId', '==', profile.providerId)))
-    // During the provider migration, legacy groups still have adminUid but no providerId.
-    // Include them so admins see all their groups until backfill completes.
-    const legacySnap = await getDocs(query(collection(db, 'groups'), where('adminUid', '==', user.uid)))
-    const merged = new Map<string, { id: string; data: GroupDoc }>()
-    for (const docSnap of [...providerSnap.docs, ...legacySnap.docs]) {
-      if (!merged.has(docSnap.id)) merged.set(docSnap.id, { id: docSnap.id, data: docSnap.data() as GroupDoc })
-    }
-    return [...merged.values()]
-  }
-  const snap = await getDocs(query(collection(db, 'groups'), where('adminUid', '==', user.uid)))
+  if (!profile?.providerId) throw new Error('Admin profile is missing its provider.')
+  const snap = await getDocs(query(collection(db, 'groups'), where('providerId', '==', profile.providerId)))
   return snap.docs.map((d) => ({ id: d.id, data: d.data() as GroupDoc }))
 }
 
@@ -446,32 +436,33 @@ export async function fetchGroupPaymentRecords(
 export async function fetchGroupPaymentLedger(
   groupId: string,
   membershipIds?: string[],
+  loadedCycleIds?: string[],
 ): Promise<PaymentLedgerRecord[]> {
   const wanted = membershipIds ? new Set(membershipIds) : null
-  const cycles = await fetchCycles(groupId)
+  const cycleIds = loadedCycleIds ?? (await fetchCycles(groupId)).map(({ id }) => id)
   const [perCycle, eventsSnap] = await Promise.all([
     Promise.all(
-    cycles.map(async ({ id }) => {
-      const cycleNumber = Number(id)
-      const cycleRef = doc(db, 'groups', groupId, 'cycles', id)
-      const paymentsSnap = await getDocs(collection(cycleRef, 'payments'))
-      const records: PaymentLedgerRecord[] = []
-      for (const paymentDoc of paymentsSnap.docs) {
-        const payment = paymentDoc.data() as PaymentDoc
-        if (payment.status !== 'paid' || (wanted && !wanted.has(paymentDoc.id))) continue
-        records.push({
-          cycleNumber,
-          membershipId: paymentDoc.id,
-          amountMinor: payment.amountMinor,
-          method: payment.method,
-          referenceNo: payment.referenceNo,
-          note: payment.note,
-          paidAtMs: toMillis(payment.paidAt),
-          status: 'paid',
-        })
-      }
-      return records
-    }),
+      cycleIds.map(async (id) => {
+        const cycleNumber = Number(id)
+        const cycleRef = doc(db, 'groups', groupId, 'cycles', id)
+        const paymentsSnap = await getDocs(collection(cycleRef, 'payments'))
+        const records: PaymentLedgerRecord[] = []
+        for (const paymentDoc of paymentsSnap.docs) {
+          const payment = paymentDoc.data() as PaymentDoc
+          if (payment.status !== 'paid' || (wanted && !wanted.has(paymentDoc.id))) continue
+          records.push({
+            cycleNumber,
+            membershipId: paymentDoc.id,
+            amountMinor: payment.amountMinor,
+            method: payment.method,
+            referenceNo: payment.referenceNo,
+            note: payment.note,
+            paidAtMs: toMillis(payment.paidAt),
+            status: 'paid',
+          })
+        }
+        return records
+      }),
     ),
     getDocs(collection(db, 'groups', groupId, 'paymentEvents')),
   ])

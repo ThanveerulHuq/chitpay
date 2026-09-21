@@ -125,6 +125,11 @@ ab batch "open $BASE_URL/admin/settings/provider" "wait --url '**/member/groups'
   if ab wait --url "**/login" >/dev/null 2>&1 || ab wait --text "No groups yet" >/dev/null 2>&1; then pass "admin provider settings redirects member (fallback)"
   else fail "admin provider settings redirects member"; fi
 }
+
+ab batch "open $BASE_URL/admin/reports" "wait --url '**/member/groups'" >/dev/null 2>&1 && pass "provider reports redirects member" || {
+  if ab wait --url "**/login" >/dev/null 2>&1 || ab wait --text "No groups yet" >/dev/null 2>&1; then pass "provider reports redirects member (fallback)"
+  else fail "provider reports redirects member"; fi
+}
 expect_no_overlay "no build errors after admin redirects"
 
 # --- Backward compat: contribution amount field migration (old data) -----------

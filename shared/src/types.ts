@@ -42,10 +42,7 @@ export type PaymentMethod = 'cash' | 'upi' | 'bank_transfer' | 'other'
 export type CycleFrequency = 'weekly' | 'biweekly' | 'monthly'
 
 export interface GroupDoc {
-  /** Canonical ownership field for migrated groups. */
-  providerId?: string
-  /** Temporary compatibility field removed after the provider migration. */
-  adminUid?: string
+  providerId: string
   name: string
   contributionAmountInPaise: number
   /** @deprecated legacy field — use contributionAmountInPaise; kept for old-data compat */
@@ -158,7 +155,7 @@ export interface BoardDoc {
 
 export interface MembershipMirrorDoc {
   groupId: string
-  providerId?: string
+  providerId: string
   groupName: string
   membershipId: string
   contributionAmountInPaise: number

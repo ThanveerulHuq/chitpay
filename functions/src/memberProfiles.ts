@@ -82,23 +82,15 @@ function isAuthEmailInUse(error: unknown): boolean {
   return (error as { code?: string })?.code === 'auth/email-already-exists'
 }
 
-async function ownedGroups(adminUid: string): Promise<Map<string, GroupDoc>> {
-  const profile = (await db.doc(`users/${adminUid}`).get()).data() as UserDoc | undefined
-  const snaps = profile?.providerId
-    ? await Promise.all([
-        db.collection('groups').where('providerId', '==', profile.providerId).get(),
-        db.collection('groups').where('adminUid', '==', adminUid).get(),
-      ])
-    : [await db.collection('groups').where('adminUid', '==', adminUid).get()]
+async function ownedGroups(providerId: string): Promise<Map<string, GroupDoc>> {
+  const snap = await db.collection('groups').where('providerId', '==', providerId).get()
   const groups = new Map<string, GroupDoc>()
-  for (const snap of snaps) {
-    for (const doc of snap.docs) groups.set(doc.id, doc.data() as GroupDoc)
-  }
+  for (const doc of snap.docs) groups.set(doc.id, doc.data() as GroupDoc)
   return groups
 }
 
-async function findManagedAnchor(adminUid: string, targetUid: string): Promise<ManagedAnchor> {
-  const groups = await ownedGroups(adminUid)
+async function findManagedAnchor(providerId: string, targetUid: string): Promise<ManagedAnchor> {
+  const groups = await ownedGroups(providerId)
   if (groups.size === 0) throw new AppError('permission_denied')
   const memberships = await db.collectionGroup('members').where('uid', '==', targetUid).get()
   const match = memberships.docs.find((doc) => {
@@ -136,11 +128,11 @@ async function commitWrites(
 }
 
 async function updateManagedAliases(
-  adminUid: string,
+  providerId: string,
   uid: string,
   edits: Array<{ currentName: string; name: string }>,
 ): Promise<void> {
-  const groups = await ownedGroups(adminUid)
+  const groups = await ownedGroups(providerId)
   const editMap = new Map(edits.map((edit) => [edit.currentName.trim().toLocaleLowerCase(), edit.name]))
   const membershipSnap = await db.collectionGroup('members').where('uid', '==', uid).get()
   const renamedIdsByGroup = new Map<string, Map<string, string>>()
@@ -272,10 +264,8 @@ async function updateAccountProfile(
 
 export const listManagedMembers = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
   try {
-    const adminUid = req.auth?.uid
-    if (!adminUid) throw new AppError('unauthenticated')
-    await assertAdminAccess(req.auth)
-    const groups = await ownedGroups(adminUid)
+    const adminProfile = await assertAdminAccess(req.auth)
+    const groups = await ownedGroups(adminProfile.providerId)
     const memberSnaps = await Promise.all(
       [...groups.keys()].map((groupId) => db.collection(`groups/${groupId}/members`).get()),
     )
@@ -338,9 +328,9 @@ export const listManagedMembers = onCall({ region: 'asia-south1', invoker: 'publ
 
 export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoker: 'public' }, async (req) => {
   try {
-    const adminUid = req.auth?.uid
-    if (!adminUid) throw new AppError('unauthenticated')
-    await assertAdminAccess(req.auth)
+    const actorUid = req.auth?.uid
+    if (!actorUid) throw new AppError('unauthenticated')
+    const adminProfile = await assertAdminAccess(req.auth)
     const input = req.data as UpdateManagedMemberProfileInput
     const uid = String(input?.uid ?? '').trim()
     if (!uid) throw new AppError('invalid_argument', 'Member is required.')
@@ -353,13 +343,13 @@ export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoke
     if (edits.length === 0) throw new AppError('invalid_argument', 'At least one member name is required.')
     const name = edits[0]!.name
     const phone = normalizedPhone(input?.phone)
-    const anchor = await findManagedAnchor(adminUid, uid)
+    const anchor = await findManagedAnchor(adminProfile.providerId, uid)
     const targetProfile = (await db.doc(`users/${uid}`).get()).data() as UserDoc | undefined
     if (targetProfile?.roles?.includes('admin')) {
       throw new AppError('permission_denied', 'Admin accounts cannot be edited from member management.')
     }
     const update = await updateAccountProfile(uid, name, phone, false)
-    await updateManagedAliases(adminUid, uid, edits)
+    await updateManagedAliases(adminProfile.providerId, uid, edits)
 
     let notificationSent = false
     let providerMessageId: string | null = null
@@ -369,7 +359,7 @@ export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoke
         const group = (await db.doc(`groups/${anchor.groupId}`).get()).data() as GroupDoc | undefined
         const language = resolveMessageLanguage(
           update.language,
-          group ? await groupAdminLanguage(group, adminUid) : undefined,
+          group ? await groupAdminLanguage(group) : undefined,
         )
         const response = await sendLoginOtp(update.phone, language)
         providerMessageId = response.providerMessageId
@@ -388,7 +378,7 @@ export const updateManagedMemberProfile = onCall({ region: 'asia-south1', invoke
         providerMessageId,
         status: notificationSent ? 'sent' : 'failed',
         error: notificationError,
-        sentBy: adminUid,
+        sentBy: actorUid,
         createdAt: FieldValue.serverTimestamp() as unknown as number,
         updatedAt: FieldValue.serverTimestamp() as unknown as number,
       }

@@ -1,18 +1,16 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ImageSquare, PencilSimple, Plus, ShieldStar, Trash, X } from '@phosphor-icons/react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { PencilSimple, Plus, ShieldStar, Trash, X } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { Button, ErrorNote, Field, Input, Page, PageHeader, PhoneInput, Skeleton } from '@/components/ui'
 import {
   callAddProviderAdmin,
   callGetMyProvider,
   callRemoveProviderAdmin,
-  callUpdateProviderAppIcon,
   callUpdateProviderName,
   type MyProvider,
 } from '@/lib/api'
 import { useAuth } from '@/lib/useAuth'
 import { useT } from '@/i18n'
-import { prepareProviderAppIcon } from '@/lib/providerIcon'
 
 export default function ProviderSettingsPage() {
   const t = useT()
@@ -27,7 +25,6 @@ export default function ProviderSettingsPage() {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
-  const iconInputRef = useRef<HTMLInputElement>(null)
 
   async function load() {
     setLoadError(false)
@@ -94,36 +91,6 @@ export default function ProviderSettingsPage() {
     }
   }
 
-  async function updateIcon(file: File) {
-    setBusy(true)
-    setActionError(null)
-    try {
-      const appIcon = await prepareProviderAppIcon(file)
-      await callUpdateProviderAppIcon(appIcon)
-      setStatus(t('provider.iconUpdated'))
-      await load()
-    } catch {
-      setActionError(t('provider.iconError'))
-    } finally {
-      setBusy(false)
-      if (iconInputRef.current) iconInputRef.current.value = ''
-    }
-  }
-
-  async function removeIcon() {
-    setBusy(true)
-    setActionError(null)
-    try {
-      await callUpdateProviderAppIcon(null)
-      setStatus(t('provider.iconRemoved'))
-      await load()
-    } catch {
-      setActionError(t('provider.iconError'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   if (!data && !loadError) {
     return <Page><Skeleton className="h-12 w-full" /><Skeleton className="mt-5 h-48 w-full" /></Page>
   }
@@ -151,50 +118,6 @@ export default function ProviderSettingsPage() {
                   </div>
                 </form>
               ) : <p className="font-semibold text-ink">{data.provider.name}</p>}
-            </div>
-          </section>
-
-          <section>
-            <div className="mb-3">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-faint">{t('provider.appIcon')}</h2>
-              <p className="mt-1 text-sm text-muted">{t('provider.appIconHint')}</p>
-            </div>
-            <div className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-4">
-              {data.provider.appIcon ? (
-                <img
-                  src={`data:${data.provider.appIcon.contentType};base64,${data.provider.appIcon.image192}`}
-                  alt=""
-                  className="size-16 shrink-0 rounded-2xl object-contain"
-                />
-              ) : (
-                <img src="/brand/chitpay-app-icon-hands.png" alt="" className="size-16 shrink-0 rounded-2xl object-contain" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-ink">
-                  {data.provider.appIcon ? t('provider.customIcon') : t('provider.defaultIcon')}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <input
-                    ref={iconInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    className="sr-only"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0]
-                      if (file) void updateIcon(file)
-                    }}
-                  />
-                  <Button type="button" variant="secondary" className="px-3 py-2 text-sm" disabled={busy} onClick={() => iconInputRef.current?.click()}>
-                    <ImageSquare size={17} />
-                    {data.provider.appIcon ? t('provider.changeIcon') : t('provider.uploadIcon')}
-                  </Button>
-                  {data.provider.appIcon && (
-                    <Button type="button" variant="ghost" className="px-3 py-2 text-sm" disabled={busy} onClick={() => void removeIcon()}>
-                      {t('provider.useDefaultIcon')}
-                    </Button>
-                  )}
-                </div>
-              </div>
             </div>
           </section>
 

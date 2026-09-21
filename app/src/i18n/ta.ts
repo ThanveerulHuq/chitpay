@@ -306,6 +306,14 @@ export const ta = {
   'payments.empty': 'இன்னும் செலுத்துதல்கள் இல்லை',
   'memberView.yourPayments': 'உங்கள் செலுத்துதல்கள்',
 
+  // Provider Reports
+  'providerReports.title': 'நிறுவன அறிக்கைகள்',
+  'providerReports.allGroups': 'அனைத்து குழுக்கள்',
+  'providerReports.groupFilter': 'குழு',
+  'providerReports.loadError': 'நிறுவன அறிக்கைகளை ஏற்ற முடியவில்லை.',
+  'providerReports.empty': 'பொருந்தும் செலுத்துதல்கள் அல்லது வழங்கல்கள் இல்லை.',
+  'providerReports.openGroupReport': '{group} குழுவின் அறிக்கையைத் திற',
+
   // Settings
   'settings.title': 'அமைப்புகள்',
   'settings.language': 'மொழி',
@@ -373,7 +381,6 @@ export const ta = {
   'managedMembers.editDescription': 'இந்த நபரின் கணக்கு விவரங்களைப் புதுப்பிக்கவும்.',
   'managedMembers.namesLabel': 'இந்தக் கணக்கில் உள்ள பெயர்கள்',
   'managedMembers.nameNumber': 'உறுப்பினர் பெயர் {count}',
-  'managedMembers.accountWideWarning': 'பெயர் மாற்றங்கள் உங்கள் நிறுவனம் நிர்வகிக்கும் குழுக்களுக்கு பொருந்தும். உள்நுழைவு எண்ணை மாற்றுவது முழுக் கணக்கிற்கும் பொருந்தும்; உறுப்பினர் வெளியேற்றப்பட்டு புதிய WhatsApp உள்நுழைவு OTP அனுப்பப்படும்.',
   'managedMembers.phoneHint': 'இது உறுப்பினரின் உள்நுழைவு எண்ணாகும்.',
   'managedMembers.groupsLabel': 'நீங்கள் நிர்வகிக்கும் குழுக்கள்',
   'managedMembers.phoneInUse': 'அந்த கைபேசி எண் ஏற்கனவே வேறு கணக்கில் உள்ளது.',

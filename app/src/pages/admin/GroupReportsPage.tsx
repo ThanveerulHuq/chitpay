@@ -3,7 +3,7 @@ import { CalendarBlank, HandCoins, PencilSimple, Receipt, X } from '@phosphor-ic
 import { callEditPayment, callReversePayment, fetchGroupPaymentLedger, fetchMyMemberships, filterPaymentsByRange, type PaymentLedgerRecord } from '@/lib/api'
 import { formatDate, formatMinor } from '@shared'
 import type { PaymentMethod } from '@shared'
-import DateRangeFields from '@/components/DateRangeFields'
+import ReportDateFilterSheet from '@/components/ReportDateFilterSheet'
 import GroupShell, { useGroupWorkspace } from './GroupShell'
 import { Button, Chip, Dropdown, ErrorNote, Field, Input, Textarea } from '@/components/ui'
 import { useI18n } from '@/i18n'
@@ -56,11 +56,11 @@ function ReportsContent() {
   const reload = useCallback(async () => {
     setLoading(true)
     const ids = isMemberView ? (await fetchMyMemberships()).filter((entry) => entry.data.groupId === groupId).map((entry) => entry.data.membershipId) : undefined
-    const records = await fetchGroupPaymentLedger(groupId, ids)
+    const records = await fetchGroupPaymentLedger(groupId, ids, cycles.map(({ id }) => id))
     setMemberIds(ids ? new Set(ids) : null)
     setRows(records)
     setLoading(false)
-  }, [groupId, isMemberView])
+  }, [cycles, groupId, isMemberView])
 
   useEffect(() => { void reload() }, [reload])
 
@@ -128,19 +128,10 @@ function ReportsContent() {
         if (!row) return null
         return <li key={`${row.cycleNumber}-${row.membershipId}-${row.eventId ?? index}`} className="flex items-start gap-3 py-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><p className="min-w-0 truncate text-sm font-semibold">{name}</p><Chip tone={row.status === 'paid' ? 'paid' : 'neutral'}>{row.status === 'paid' ? t('status.paid') : t('workspace.reversed')}</Chip></div><p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">{row.method && <PaymentMethodIcon method={row.method} size={12} weight="bold" />}{row.method ? methodLabel(row.method, t) : t('workspace.reversed')}<span aria-hidden>·</span>{formatCycleName(plannedDateForCycle(group, row.cycleNumber), group.frequency, locale, t)}{row.paidAtMs && <><span aria-hidden>·</span><span className="whitespace-nowrap">{formatDate(row.paidAtMs, locale)}</span></>}</p>{row.reason && <p className="mt-0.5 truncate text-xs text-faint">{row.reason}</p>}</div><div className="flex shrink-0 items-center gap-2"><span className="text-sm font-semibold tabular-nums">{formatMinor(row.amountMinor)}</span>{!isReadOnly && row.status === 'paid' && <button type="button" onClick={() => setSelected(row)} className="rounded-full p-2 text-muted hover:bg-sunken hover:text-ink" aria-label={t('workspace.editPayment')}><PencilSimple size={16} weight="bold" /></button>}</div></li>
       })}</ul>}
-      {dateFilterOpen && <DateFilterSheet from={filters.from} to={filters.to} onClose={() => setDateFilterOpen(false)} onApply={(from, to) => { setFilters((current) => ({ ...current, from, to })); setDateFilterOpen(false) }} />}
+      {dateFilterOpen && <ReportDateFilterSheet from={filters.from} to={filters.to} onClose={() => setDateFilterOpen(false)} onApply={(from, to) => { setFilters((current) => ({ ...current, from, to })); setDateFilterOpen(false) }} />}
       {selected && <PaymentCorrectionSheet groupId={groupId} row={selected} name={nameById.get(selected.membershipId) ?? t('memberView.aMember')} onClose={() => setSelected(null)} onDone={() => { setSelected(null); void reload() }} />}
     </>
   )
-}
-
-function DateFilterSheet({ from, to, onClose, onApply }: { from: string; to: string; onClose: () => void; onApply: (from: string, to: string) => void }) {
-  const { t } = useI18n()
-  const [draftFrom, setDraftFrom] = useState(from)
-  const [draftTo, setDraftTo] = useState(to)
-  useBodyLock(true)
-
-  return <div role="dialog" aria-modal="true" aria-labelledby="date-filter-title" className="fixed inset-0 z-[60] flex items-end bg-black/40 sm:items-center sm:justify-center sm:p-4" onClick={(event) => event.target === event.currentTarget && onClose()}><div className="w-full max-w-lg rounded-t-3xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-2xl sm:pb-5"><div className="flex items-center justify-between"><h2 id="date-filter-title" className="text-lg font-bold">{t('workspace.dateFilter')}</h2><button type="button" onClick={onClose} aria-label={t('common.close')} className="rounded-full p-1.5 text-muted hover:bg-sunken"><X size={20} weight="bold" /></button></div><div className="mt-4"><DateRangeFields from={draftFrom} to={draftTo} onFromChange={setDraftFrom} onToChange={setDraftTo} /></div><div className="mt-6 flex gap-3"><Button variant="secondary" onClick={() => { setDraftFrom(''); setDraftTo('') }} className="flex-1">{t('workspace.clearFilters')}</Button><Button onClick={() => onApply(draftFrom, draftTo)} className="flex-1">{t('workspace.applyFilters')}</Button></div></div></div>
 }
 
 function PaymentCorrectionSheet({ groupId, row, name, onClose, onDone }: { groupId: string; row: PaymentLedgerRecord; name: string; onClose: () => void; onDone: () => void }) {

@@ -9,7 +9,7 @@
   },
   "hosting": {
     "public": "app/dist",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "ignore": ["firebase.json", "manifest.webmanifest", "**/.*", "**/node_modules/**"],
     "headers": [
       {
         "source": "**",
@@ -31,6 +31,13 @@
       }
     ],
     "rewrites": [
+      {
+        "source": "/manifest.webmanifest",
+        "function": {
+          "functionId": "providerBranding",
+          "region": "asia-south1"
+        }
+      },
       {
         "source": "/provider-branding/**",
         "function": {

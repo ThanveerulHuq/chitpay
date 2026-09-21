@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Ticket, Users, CalendarBlank, CurrencyInr, Gear } from '@phosphor-icons/react'
+import { Plus, Ticket, Users, CalendarBlank, CurrencyInr, FileText, Gear } from '@phosphor-icons/react'
 import { fetchMyGroups, fetchMyMemberships } from '@/lib/api'
 import { contributionInPaise, formatMinor } from '@shared'
 import { Chip, Page, Button } from '@/components/ui'
 import { GroupsListLoadingScreen } from '@/components/LoadingScreens'
 import { useT } from '@/i18n'
-import { groupPath, groupsPath, settingsPath, useExperience } from '@/lib/roleRoutes'
+import { groupPath, groupsPath, providerReportsPath, settingsPath, useExperience } from '@/lib/roleRoutes'
 import { useBranding } from '@/lib/brandingContext'
 
 type ListEntry =
@@ -70,6 +70,16 @@ export default function GroupsListPage() {
           <h1 className="text-2xl font-bold tracking-tight">ChitPay</h1>
         </div>
         <div className="flex items-center gap-2">
+          {experience === 'admin' && (
+            <Link
+              to={providerReportsPath()}
+              aria-label={t('workspace.reports')}
+              className="inline-flex items-center gap-1.5 rounded-2xl border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink transition-colors hover:bg-sunken"
+            >
+              <FileText size={16} weight="bold" />
+              <span className="hidden sm:inline">{t('workspace.reports')}</span>
+            </Link>
+          )}
           {experience === 'admin' && (
             <Link
               to={`${groupsPath(experience)}/new`}

@@ -144,7 +144,7 @@ export const confirmSelection = onCall({ region: 'asia-south1', invoker: 'public
           const group = (await db.doc(`groups/${groupId}`).get()).data() as GroupDoc | undefined
           const language = resolveMessageLanguage(
             user.language,
-            group ? await groupAdminLanguage(group, uid) : undefined,
+            group ? await groupAdminLanguage(group) : undefined,
           )
           const res = await messaging.sendTemplate(user.phone, 'recipient_notification', {
             member_name: notifiedName,

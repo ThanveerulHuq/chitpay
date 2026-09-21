@@ -10,7 +10,7 @@ This is the canonical reference for the Firestore database used by ChitPay. The 
 - Firestore timestamps are written with `serverTimestamp()`. Shared interfaces currently type them as `number` for application consumption.
 - Phone numbers are normalized digits with country code, for example `919751000085`.
 - All Firestore writes are performed by callable functions or trusted local scripts. Client writes are denied.
-- `providerId` is the canonical ownership boundary. `groups.adminUid` is temporary migration compatibility data.
+- `providerId` is the ownership boundary for every group.
 
 ## Collection Tree
 
@@ -90,7 +90,7 @@ Member-facing mirror of a group membership slot. The document ID matches `groups
 | Field | Type | Required | Notes |
 |---|---|---:|---|
 | `groupId` | group ID | yes | Parent group. |
-| `providerId` | provider ID | no | Denormalized provider used for branding. Older mirrors resolve it through the group document. |
+| `providerId` | provider ID | yes | Denormalized provider used for branding. |
 | `groupName` | string | yes | Denormalized group name. |
 | `membershipId` | membership ID | yes | Must equal the document ID. |
 | `contributionAmountInPaise` | positive integer | yes | Denormalized contribution per slot per cycle, in paise. For example, ₹5,000 is stored as `500000`. |
@@ -104,7 +104,7 @@ Read-access marker and membership index.
 
 | Field | Type | Required | Notes |
 |---|---|---:|---|
-| `membershipIds` | string[] | yes | All membership slots the user owns in this group. Legacy group owners may have an empty array. |
+| `membershipIds` | string[] | yes | All membership slots the user owns in this group. Administrators may have an empty array. |
 
 ### `users/{uid}/messages/{messageId}`
 
@@ -134,8 +134,7 @@ Message template values are `login_code`, `login_link`, `login_access`, `member_
 
 | Field | Type | Required | Notes |
 |---|---|---:|---|
-| `providerId` | provider ID | canonical | Provider that owns and administers the group. |
-| `adminUid` | UID | legacy only | Temporary compatibility field until provider migration cleanup. |
+| `providerId` | provider ID | yes | Provider that owns and administers the group. |
 | `name` | string | yes | Group display name. |
 | `contributionAmountInPaise` | positive integer | yes | Contribution per membership slot per cycle, in paise. For example, ₹5,000 is stored as `500000`. |
 | `frequency` | `'weekly' \| 'biweekly' \| 'monthly'` | yes | Cycle schedule frequency. |
@@ -278,7 +277,7 @@ Rate-limit marker keyed by normalized phone number.
 
 - A provider has many admins and groups; an admin belongs to one provider.
 - Every provider must retain at least one administrator.
-- A group belongs to one provider after migration.
+- Every group belongs to exactly one provider.
 - A user may own multiple membership slots in a group. `selectedInCycle` is tracked independently on each slot, so selecting one share does not mark the user's other shares as selected.
 - A user's phone remains account-wide and unique, while member lists derive the user's visible names from the unique `displayName` values on their slots.
 - Membership changes must update the group member document, user membership mirror, group-access marker, active-cycle payments, and board entries together.
@@ -288,4 +287,4 @@ Rate-limit marker keyed by normalized phone number.
 
 ## Migration Note
 
-Provider migration is staged. During compatibility rollout, a group may contain either canonical `providerId` or legacy `adminUid`. Follow the [provider migration runbook](plans/provider-migration-runbook.md). The separate schema-v2 migration copies renamed amount fields, user message history, group-level payment events and selections, and Auth last-login metadata before legacy fields are removed; follow the [schema-v2 migration runbook](plans/schema-v2-migration-runbook.md).
+The provider ownership migration is complete and runtime compatibility fallbacks have been removed. The separate schema-v2 migration covers renamed amount fields, user message history, group-level payment events and selections, and Auth last-login metadata; follow the [schema-v2 migration runbook](plans/schema-v2-migration-runbook.md).

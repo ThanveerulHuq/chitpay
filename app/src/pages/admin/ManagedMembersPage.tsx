@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { MagnifyingGlass, PencilSimple, UserCircle, UsersThree, Warning, X } from '@phosphor-icons/react'
+import { MagnifyingGlass, PencilSimple, UserCircle, UsersThree, X } from '@phosphor-icons/react'
 import {
   callListManagedMembers,
   callUpdateManagedMemberProfile,
@@ -251,11 +251,6 @@ function EditMemberSheet({
           <button type="button" onClick={onClose} disabled={busy} aria-label={t('common.close')} className="rounded-full p-2 text-muted hover:bg-sunken disabled:opacity-40">
             <X size={20} weight="bold" />
           </button>
-        </div>
-
-        <div className="mt-4 flex gap-3 rounded-2xl bg-sunken p-3.5 text-sm text-muted">
-          <Warning size={20} weight="fill" className="mt-0.5 shrink-0 text-accent-strong dark:text-accent" />
-          <p>{t('managedMembers.accountWideWarning')}</p>
         </div>
 
         <form onSubmit={save} className="mt-5 space-y-4">

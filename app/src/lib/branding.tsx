@@ -1,13 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { collection, doc, getDoc, getDocs, onSnapshot } from 'firebase/firestore'
+import { collection, doc, getDocs, onSnapshot } from 'firebase/firestore'
 import type { MembershipMirrorDoc, ProviderAppIcon, ProviderDoc } from '@shared'
 import { useAuth } from './useAuth'
 import { db } from './firebase'
 import { BrandingContext } from './brandingContext'
 
 const FALLBACK_ICON = '/brand/chitpay-app-icon-hands.png'
-const FALLBACK_MANIFEST = '/manifest.webmanifest'
 const STORAGE_KEY = 'chitapp_provider_branding'
+const PROVIDER_COOKIE = 'chitapp_provider_id'
 
 interface CachedBranding {
   providerId: string
@@ -27,6 +27,16 @@ function readCachedBranding(): CachedBranding | null {
   }
 }
 
+function rememberProvider(providerId: string) {
+  const secure = location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${PROVIDER_COOKIE}=${encodeURIComponent(providerId)}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`
+}
+
+function forgetProvider() {
+  const secure = location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${PROVIDER_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
+}
+
 export function BrandingProvider({ children }: { children: ReactNode }) {
   const { user, profile, loading } = useAuth()
   const [branding, setBranding] = useState<CachedBranding | null>(() => readCachedBranding())
@@ -40,18 +50,11 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     if (loading || !user || adminProviderId) return
     let cancelled = false
     const uid = user.uid
-    void getDocs(collection(db, 'users', user.uid, 'memberships')).then(async (snapshot) => {
+    void getDocs(collection(db, 'users', user.uid, 'memberships')).then((snapshot) => {
       const providerIds = new Set<string>()
-      const unresolvedGroupIds: string[] = []
       for (const membershipSnapshot of snapshot.docs) {
         const membership = membershipSnapshot.data() as MembershipMirrorDoc
-        if (membership.providerId) providerIds.add(membership.providerId)
-        else if (membership.groupId) unresolvedGroupIds.push(membership.groupId)
-      }
-      const groups = await Promise.all(unresolvedGroupIds.map((groupId) => getDoc(doc(db, 'groups', groupId))))
-      for (const group of groups) {
-        const providerId = group.data()?.providerId
-        if (typeof providerId === 'string') providerIds.add(providerId)
+        providerIds.add(membership.providerId)
       }
       if (!cancelled) setMemberProvider({ uid, providerId: providerIds.size === 1 ? [...providerIds][0] : null })
     }).catch(() => {
@@ -61,6 +64,11 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   }, [adminProviderId, loading, user])
 
   const providerId = adminProviderId ?? memberProviderId
+
+  useEffect(() => {
+    if (providerId) rememberProvider(providerId)
+    else if (!loading && user && memberProviderId !== undefined) forgetProvider()
+  }, [loading, memberProviderId, providerId, user])
 
   useEffect(() => {
     if (loading || (user && !adminProviderId && memberProviderId === undefined)) return
@@ -96,16 +104,6 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
     if (favicon) favicon.href = activeBranding ? iconSrc(activeBranding.appIcon) : FALLBACK_ICON
-
-    let manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]')
-    if (!manifest) {
-      manifest = document.createElement('link')
-      manifest.rel = 'manifest'
-      document.head.append(manifest)
-    }
-    manifest.href = activeBranding
-      ? `/provider-branding/${encodeURIComponent(activeBranding.providerId)}/manifest.webmanifest?v=${encodeURIComponent(activeBranding.appIcon.version)}`
-      : FALLBACK_MANIFEST
   }, [activeBranding])
 
   return (
